@@ -1,0 +1,65 @@
+[
+  {
+    "service_id": "acupuncture",
+    "name": "Acupuncture",
+    "category": "wellness",
+    "keywords": ["acupuncture", "pain", "stress", "migraine", "nausea", "wellness", "tcm", "healing"],
+    "short_description": "Traditional acupuncture treatment used for pain relief, stress reduction, and overall wellness."
+  },
+  {
+    "service_id": "massage",
+    "name": "Massage",
+    "category": "bodywork",
+    "keywords": ["massage", "bodywork", "muscle", "relaxation", "therapy", "tension", "pain"],
+    "short_description": "Professional massage therapy combining Eastern and Western techniques tailored to your needs."
+  },
+  {
+    "service_id": "herbology",
+    "name": "Chinese Herbal Medicine",
+    "category": "wellness",
+    "keywords": ["herbs", "herbal", "medicine", "chinese medicine", "tcm", "natural", "treatment"],
+    "short_description": "Personalized Chinese herbal treatments using over 300 traditional herbs."
+  },
+  {
+    "service_id": "microneedling",
+    "name": "Microneedling",
+    "category": "skin",
+    "keywords": ["microneedling", "skin", "facial", "acne", "scars", "collagen", "beauty"],
+    "short_description": "Skin treatment that stimulates collagen to improve texture, tone, and reduce scars."
+  },
+  {
+    "service_id": "nanoneedling",
+    "name": "Nanoneedling",
+    "category": "skin",
+    "keywords": ["nanoneedling", "skin", "facial", "rejuvenation", "pigmentation", "beauty"],
+    "short_description": "Gentle skin treatment that improves appearance and delivers active ingredients without downtime."
+  },
+  {
+    "service_id": "cosmetic-acupuncture",
+    "name": "Cosmetic Acupuncture",
+    "category": "skin",
+    "keywords": ["cosmetic acupuncture", "wrinkles", "face", "anti-aging", "beauty", "skin"],
+    "short_description": "Facial acupuncture treatment that reduces wrinkles and improves skin firmness naturally."
+  },
+  {
+    "service_id": "red-light-therapy",
+    "name": "Red Light Therapy",
+    "category": "skin",
+    "keywords": ["red light", "therapy", "skin", "healing", "inflammation", "depression", "collagen"],
+    "short_description": "Light therapy that supports skin healing, reduces inflammation, and boosts collagen production."
+  },
+  {
+    "service_id": "cancer-care",
+    "name": "Cancer Care Acupuncture",
+    "category": "wellness",
+    "keywords": ["cancer", "care", "immune", "healing", "support", "anxiety", "treatment"],
+    "short_description": "Free acupuncture sessions designed to support cancer patients and improve wellbeing."
+  },
+  {
+    "service_id": "athletics",
+    "name": "Amityville Athletics",
+    "category": "fitness",
+    "keywords": ["fitness", "running", "cycling", "swimming", "triathlon", "movement", "sports"],
+    "short_description": "Community-based training group for runners, cyclists, swimmers, and athletes of all levels."
+  }
+]

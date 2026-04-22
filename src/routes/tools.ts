@@ -1,7 +1,7 @@
 import { Router } from "express";
 import fs from "fs";
 import path from "path";
-import services from "../../../knowledge/services.json";
+import services from "../knowledge/services.json";
 const router = Router();
 
 const filePath = path.join(__dirname, "../data/booking_requests.json");
