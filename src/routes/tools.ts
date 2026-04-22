@@ -144,8 +144,7 @@ router.post("/create-callback-request", (req, res) => {
     });
   }
 
-  const callbackFilePath = path.join(__dirname, "../data/callback_requests.json");
-
+const callbackFilePath = path.join(process.cwd(), "src/data/callback_requests.json");
   const newCallbackRequest = {
     id: Date.now(),
     caller_name,
