@@ -134,7 +134,7 @@ router.get("/clinic-info", (req, res) => {
     }
   });
 });
-router.post("/create-callback-request", (req, res) => {
+router.post("/create-callback-request", async (req, res) => {
   const { caller_name, phone, reason } = req.body;
 
   if (!caller_name || !phone) {
@@ -164,6 +164,15 @@ const callbackFilePath = path.join(process.cwd(), "src/data/callback_requests.js
   data.push(newCallbackRequest);
 
   fs.writeFileSync(callbackFilePath, JSON.stringify(data, null, 2));
+if (process.env.N8N_CALLBACK_WEBHOOK_URL) {
+  await fetch(process.env.N8N_CALLBACK_WEBHOOK_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(newCallbackRequest)
+  });
+}
 
   console.log("CALLBACK SAVED:", newCallbackRequest);
 
