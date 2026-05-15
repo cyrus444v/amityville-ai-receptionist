@@ -1,0 +1,176 @@
+[
+  {
+    "name": "get_current_date",
+    "description": "Returns today's date, day of week, and current time in Eastern Time. Call this at the START of any booking, rescheduling, or availability check — before calculating relative dates like 'tomorrow', 'next Wednesday', or 'this Friday'. Never guess the date without calling this first.",
+    "url": "https://amityville-ai-receptionist.onrender.com/current-date",
+    "speak_during_execution": false,
+    "execution_message_description": "No spoken message needed — this is a silent background call.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "check_availability",
+    "description": "Check if a specific date and time is available for an appointment. Always call this before offering or confirming any time slot. If no time is provided, returns all available slots for that day.",
+    "url": "https://amityville-ai-receptionist.onrender.com/check-availability",
+    "speak_during_execution": true,
+    "execution_message_description": "Say something like: 'Let me check our availability for that day...' or 'One moment while I look that up.'",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "The appointment date in YYYY-MM-DD format. Convert all spoken dates (e.g. 'next Tuesday', 'June 15th') to this format."
+        },
+        "time": {
+          "type": "string",
+          "description": "The specific time to check in HH:MM 24-hour format (e.g. '10:00', '14:30'). Optional — if omitted, all available slots for the day are returned."
+        },
+        "service": {
+          "type": "string",
+          "description": "The name of the service the caller wants to book (e.g. 'Acupuncture', 'Massage'). Optional but improves accuracy."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Appointment duration in minutes. Optional — defaults to the service's standard duration."
+        }
+      },
+      "required": ["date"]
+    }
+  },
+  {
+    "name": "create_appointment",
+    "description": "Book an appointment after availability has been confirmed. Only call this after check_availability has returned available=true AND the caller has confirmed the time slot, provided their name, and provided their phone number.",
+    "url": "https://amityville-ai-receptionist.onrender.com/create-appointment",
+    "speak_during_execution": true,
+    "execution_message_description": "Say something like: 'Perfect, let me get that booked for you now...'",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "caller_name": {
+          "type": "string",
+          "description": "The caller's full name."
+        },
+        "phone": {
+          "type": "string",
+          "description": "The caller's phone number."
+        },
+        "service": {
+          "type": "string",
+          "description": "The exact name of the service being booked (e.g. 'Acupuncture', 'Cosmetic Acupuncture')."
+        },
+        "date": {
+          "type": "string",
+          "description": "The appointment date in YYYY-MM-DD format."
+        },
+        "time": {
+          "type": "string",
+          "description": "The appointment start time in HH:MM 24-hour format."
+        },
+        "duration_minutes": {
+          "type": "integer",
+          "description": "Appointment duration in minutes. Optional — defaults to the service's standard duration."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional notes or context the caller mentioned. Optional."
+        }
+      },
+      "required": ["caller_name", "phone", "service", "date", "time"]
+    }
+  },
+  {
+    "name": "reschedule_appointment",
+    "description": "Reschedule an existing confirmed appointment to a new date and time. Always check availability for the new slot before calling this.",
+    "url": "https://amityville-ai-receptionist.onrender.com/reschedule-appointment",
+    "speak_during_execution": true,
+    "execution_message_description": "Say something like: 'Let me update that appointment for you...'",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "The phone number the original appointment was booked under. Used to look up the appointment."
+        },
+        "appointment_id": {
+          "type": "string",
+          "description": "The appointment ID, if known. Optional — phone number is usually easier to obtain."
+        },
+        "new_date": {
+          "type": "string",
+          "description": "The new appointment date in YYYY-MM-DD format."
+        },
+        "new_time": {
+          "type": "string",
+          "description": "The new appointment start time in HH:MM 24-hour format."
+        }
+      },
+      "required": ["new_date", "new_time"]
+    }
+  },
+  {
+    "name": "cancel_appointment",
+    "description": "Cancel an existing appointment. Ask the caller for the phone number used to book the appointment to identify it.",
+    "url": "https://amityville-ai-receptionist.onrender.com/cancel-appointment",
+    "speak_during_execution": true,
+    "execution_message_description": "Say something like: 'Let me take care of that cancellation for you...'",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "The phone number the appointment was booked under."
+        },
+        "appointment_id": {
+          "type": "string",
+          "description": "The appointment ID, if known. Optional."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "create_callback",
+    "description": "Save a callback request when a caller wants to be called back by the team. Use this when the caller can't get what they need right now, prefers to speak with a human, or explicitly asks for a callback.",
+    "url": "https://amityville-ai-receptionist.onrender.com/create-callback",
+    "speak_during_execution": true,
+    "execution_message_description": "Say something like: 'I'll get that request in for you right now...'",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "caller_name": {
+          "type": "string",
+          "description": "The caller's full name."
+        },
+        "phone": {
+          "type": "string",
+          "description": "The caller's phone number."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Brief description of why they're calling or what they need. Optional."
+        }
+      },
+      "required": ["caller_name", "phone"]
+    }
+  },
+  {
+    "name": "search_services",
+    "description": "Search for services by name, category, or symptom. Use this when a caller asks what services are offered, asks about a specific treatment, or describes a symptom or condition.",
+    "url": "https://amityville-ai-receptionist.onrender.com/search-services",
+    "speak_during_execution": false,
+    "execution_message_description": "No spoken message needed — response is fast.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "The search query — can be a service name, symptom, category, or natural language phrase like 'what do you offer for skin' or 'something for stress'."
+        }
+      },
+      "required": ["query"]
+    }
+  }
+]
