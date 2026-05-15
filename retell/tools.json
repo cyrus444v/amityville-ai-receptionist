@@ -42,7 +42,7 @@
   },
   {
     "name": "create_appointment",
-    "description": "Book an appointment after availability has been confirmed. Only call this after check_availability has returned available=true AND the caller has confirmed the time slot, provided their name, and provided their phone number.",
+    "description": "Book an appointment after availability has been confirmed. Only call this after check_availability has returned available=true AND the caller has confirmed the time slot, provided their name, phone, and optionally email.",
     "url": "https://amityville-ai-receptionist.onrender.com/create-appointment",
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Perfect, let me get that booked for you now...'",
@@ -56,6 +56,10 @@
         "phone": {
           "type": "string",
           "description": "The caller's phone number."
+        },
+        "email": {
+          "type": "string",
+          "description": "The caller's email address for a confirmation email. Optional — only include if the caller provided one."
         },
         "service": {
           "type": "string",

@@ -11,6 +11,7 @@ import {
   cancelCalendarEvent,
 } from './calendar';
 import { logger } from '../utils/logger';
+import { sendBookingConfirmation } from './email';
 import type { Appointment, AvailabilityResult, BookingResult } from '../types';
 
 dayjs.extend(utc);
@@ -108,6 +109,7 @@ export async function checkAvailability(
 export async function createAppointment(params: {
   caller_name: string;
   phone: string;
+  email?: string;
   service: string;
   date: string;
   time: string;
@@ -153,6 +155,7 @@ export async function createAppointment(params: {
       timezone:         tz,
       google_event_id:  eventId,
       status:           'confirmed',
+      email:            params.email ?? null,
       notes:            params.notes ?? null,
     })
     .select()
@@ -165,10 +168,22 @@ export async function createAppointment(params: {
 
   logger.info('Appointment created', { service: params.service, date: params.date, time: params.time });
 
+  // Send confirmation email if address was provided (non-blocking — don't fail the booking if email fails)
+  if (params.email) {
+    sendBookingConfirmation({
+      to:               params.email,
+      caller_name:      params.caller_name,
+      service:          params.service,
+      date:             params.date,
+      time:             params.time,
+      duration_minutes: duration,
+    }).catch((err) => logger.error('Confirmation email failed', { error: (err as Error).message }));
+  }
+
   return {
     success: true,
     appointment: data as Appointment,
-    message: `Appointment confirmed for ${params.caller_name} on ${params.date} at ${params.time} for ${params.service}.`,
+    message: `Appointment confirmed for ${params.caller_name} on ${params.date} at ${params.time} for ${params.service}.${params.email ? ' A confirmation email has been sent.' : ''}`,
   };
 }
 

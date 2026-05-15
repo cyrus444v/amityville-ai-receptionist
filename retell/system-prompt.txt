@@ -79,6 +79,11 @@ Wait for the answer.
 Repeat the number back to confirm: "Got it — [number]. Is that right?"
 If the caller corrects it, update the number before proceeding.
 
+STEP 7B — Get the caller's email (optional).
+Ask: "Would you like a confirmation email? If so, what's your email address?"
+If they say yes and give an address, note it. If they say no or skip it, continue without it.
+Do NOT ask twice or push if they decline.
+
 STEP 8 — Confirm before booking.
 Read back: service, date, time, name, phone number.
 Ask: "Does that all sound right?"

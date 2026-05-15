@@ -2,6 +2,7 @@ export interface Appointment {
   id: string;
   caller_name: string;
   phone: string;
+  email?: string;
   service_id?: string;
   service_name: string;
   appointment_date: string;   // YYYY-MM-DD
