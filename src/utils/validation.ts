@@ -13,7 +13,7 @@ export const CheckAvailabilitySchema = z.object({
 
 export const CreateAppointmentSchema = z.object({
   caller_name:      z.string().min(1, 'Name is required').max(100),
-  phone:            z.string().min(7, 'Valid phone number required').max(30),
+  phone:            z.string().min(4, 'Phone number required').max(30),
   email:            z.string().email('Invalid email address').optional(),
   service:          z.string().min(1, 'Service is required'),
   date:             z.string().regex(dateRegex, 'Date must be YYYY-MM-DD'),
@@ -46,7 +46,7 @@ export const CancelAppointmentSchema = z.object({
 
 export const CreateCallbackSchema = z.object({
   caller_name: z.string().min(1, 'Name is required').max(100),
-  phone:       z.string().min(7, 'Valid phone number required').max(30),
+  phone:       z.string().min(4, 'Phone number required').max(30),
   reason:      z.string().max(500).optional(),
 });
 
