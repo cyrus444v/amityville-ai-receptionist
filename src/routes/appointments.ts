@@ -34,10 +34,8 @@ router.post('/check-availability', async (req: Request, res: Response) => {
     );
     return res.json({ success: true, ...result });
   } catch (err) {
-    const msg = (err as Error).message;
-    logger.error('check-availability failed', { error: msg });
-    const keyPreview = process.env.GOOGLE_PRIVATE_KEY?.substring(0, 60).replace(/\n/g, '[NL]').replace(/\\n/g, '[ESC_N]') ?? 'not set';
-    return res.status(500).json({ success: false, message: 'Failed to check availability. Please try again.', debug: msg, keyPreview });
+    logger.error('check-availability failed', { error: (err as Error).message });
+    return res.status(500).json({ success: false, message: 'Failed to check availability. Please try again.' });
   }
 });
 
