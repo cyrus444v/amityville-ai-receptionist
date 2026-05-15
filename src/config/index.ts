@@ -1,14 +1,29 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Support GOOGLE_CREDENTIALS_BASE64 (entire service account JSON encoded as base64)
+// This avoids all private key formatting issues with env vars
+function getGoogleCredentials() {
+  if (process.env.GOOGLE_CREDENTIALS_BASE64) {
+    const json = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString('utf8'));
+    return { email: json.client_email, key: json.private_key };
+  }
+  return {
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
+    key: (process.env.GOOGLE_PRIVATE_KEY || '')
+      .replace(/^["']|["']$/g, '')
+      .replace(/\\n/g, '\n'),
+  };
+}
+
+const googleCreds = getGoogleCredentials();
+
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
 
   google: {
-    serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
-    privateKey: (process.env.GOOGLE_PRIVATE_KEY || '')
-      .replace(/^["']|["']$/g, '')   // strip surrounding quotes if pasted with them
-      .replace(/\\n/g, '\n'),         // convert \n escape sequences to real newlines
+    serviceAccountEmail: googleCreds.email,
+    privateKey: googleCreds.key,
     calendarId: process.env.GOOGLE_CALENDAR_ID || 'primary',
   },
 
