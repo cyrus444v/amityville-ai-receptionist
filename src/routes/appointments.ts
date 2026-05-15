@@ -5,7 +5,7 @@ import {
   RescheduleAppointmentSchema,
   CancelAppointmentSchema,
 } from '../utils/validation';
-import { normaliseDate, normaliseTime } from '../utils/parse-datetime';
+import { normaliseDate, normaliseTime, normalisePhone } from '../utils/parse-datetime';
 import {
   checkAvailability,
   createAppointment,
@@ -48,8 +48,9 @@ router.post('/check-availability', async (req: Request, res: Response) => {
 // POST /create-appointment
 router.post('/create-appointment', async (req: Request, res: Response) => {
   const body = { ...req.body };
-  if (body.date) body.date = normaliseDate(body.date) ?? body.date;
-  if (body.time) body.time = normaliseTime(body.time) ?? body.time;
+  if (body.date)  body.date  = normaliseDate(body.date)   ?? body.date;
+  if (body.time)  body.time  = normaliseTime(body.time)   ?? body.time;
+  if (body.phone) body.phone = normalisePhone(body.phone) ?? body.phone;
 
   const parsed = CreateAppointmentSchema.safeParse(body);
   if (!parsed.success) {
@@ -67,7 +68,12 @@ router.post('/create-appointment', async (req: Request, res: Response) => {
 
 // POST /reschedule-appointment
 router.post('/reschedule-appointment', async (req: Request, res: Response) => {
-  const parsed = RescheduleAppointmentSchema.safeParse(req.body);
+  const body = { ...req.body };
+  if (body.new_date) body.new_date = normaliseDate(body.new_date) ?? body.new_date;
+  if (body.new_time) body.new_time = normaliseTime(body.new_time) ?? body.new_time;
+  if (body.phone)    body.phone    = normalisePhone(body.phone)   ?? body.phone;
+
+  const parsed = RescheduleAppointmentSchema.safeParse(body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.flatten() });
   }
@@ -83,7 +89,10 @@ router.post('/reschedule-appointment', async (req: Request, res: Response) => {
 
 // POST /cancel-appointment
 router.post('/cancel-appointment', async (req: Request, res: Response) => {
-  const parsed = CancelAppointmentSchema.safeParse(req.body);
+  const body = { ...req.body };
+  if (body.phone) body.phone = normalisePhone(body.phone) ?? body.phone;
+
+  const parsed = CancelAppointmentSchema.safeParse(body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.flatten() });
   }

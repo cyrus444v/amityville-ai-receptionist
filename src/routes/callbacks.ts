@@ -1,13 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { CreateCallbackSchema } from '../utils/validation';
 import { createCallback } from '../services/callback';
+import { normalisePhone } from '../utils/parse-datetime';
 import { logger } from '../utils/logger';
 
 const router = Router();
 
 // POST /create-callback
 router.post('/create-callback', async (req: Request, res: Response) => {
-  const parsed = CreateCallbackSchema.safeParse(req.body);
+  const body = { ...req.body };
+  if (body.phone) body.phone = normalisePhone(body.phone) ?? body.phone;
+
+  const parsed = CreateCallbackSchema.safeParse(body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.flatten() });
   }
