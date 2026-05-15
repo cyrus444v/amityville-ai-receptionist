@@ -5,6 +5,8 @@ import { z } from 'zod';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import { google } from 'googleapis';
+import { getSupabaseClient } from '../db/client';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -50,6 +52,52 @@ router.get('/current-date', (_req: Request, res: Response) => {
     timezone: tz,
     iso: now.toISOString(),
   });
+});
+
+// GET /health — diagnostic endpoint to verify Google Calendar write access and Supabase connectivity
+router.get('/health', async (_req: Request, res: Response) => {
+  const checks: Record<string, { ok: boolean; detail: string }> = {};
+
+  // 1. Google Calendar — write access (create + delete a throwaway event)
+  try {
+    const auth = new google.auth.JWT({
+      email: config.google.serviceAccountEmail,
+      key: config.google.privateKey,
+      scopes: ['https://www.googleapis.com/auth/calendar'],
+    });
+    const calendar = google.calendar({ version: 'v3', auth });
+    const tz = config.business.timezone;
+    const start = dayjs().tz(tz).add(1, 'day').hour(10).minute(0).second(0);
+    const end = start.add(30, 'minute');
+
+    const created = await calendar.events.insert({
+      calendarId: config.google.calendarId,
+      requestBody: {
+        summary: '[health-check — safe to delete]',
+        start: { dateTime: start.toISOString(), timeZone: tz },
+        end:   { dateTime: end.toISOString(),   timeZone: tz },
+      },
+    });
+    const eventId = created.data.id!;
+    await calendar.events.delete({ calendarId: config.google.calendarId, eventId });
+
+    checks.google_calendar = { ok: true, detail: 'Write access confirmed (test event created and deleted)' };
+  } catch (err) {
+    checks.google_calendar = { ok: false, detail: (err as Error).message };
+  }
+
+  // 2. Supabase — connectivity and table existence
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('appointments').select('id').limit(1);
+    if (error) throw new Error(error.message);
+    checks.supabase = { ok: true, detail: 'Connected and appointments table exists' };
+  } catch (err) {
+    checks.supabase = { ok: false, detail: (err as Error).message };
+  }
+
+  const allOk = Object.values(checks).every((c) => c.ok);
+  return res.status(allOk ? 200 : 500).json({ ok: allOk, checks });
 });
 
 // GET /clinic-info

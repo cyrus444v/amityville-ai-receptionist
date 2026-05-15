@@ -33,8 +33,18 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   logger.info(`Server running on port ${config.port}`);
+
+  // Self-ping every 10 minutes to prevent Render free-tier cold starts during active use.
+  // Remove this once upgraded to a paid Render plan with "always on" enabled.
+  if (process.env.SELF_PING_URL) {
+    setInterval(() => {
+      fetch(process.env.SELF_PING_URL as string).catch(() => {/* silent */});
+    }, 10 * 60 * 1000);
+  }
 });
+
+export { server };
 
 export default app;

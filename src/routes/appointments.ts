@@ -34,8 +34,9 @@ router.post('/check-availability', async (req: Request, res: Response) => {
     );
     return res.json({ success: true, ...result });
   } catch (err) {
-    logger.error('check-availability failed', { error: (err as Error).message });
-    return res.status(500).json({ success: false, message: 'Failed to check availability. Please try again.' });
+    const msg = (err as Error).message;
+    logger.error('check-availability failed', { error: msg });
+    return res.status(500).json({ success: false, message: 'Failed to check availability. Please try again.', debug: msg });
   }
 });
 

@@ -17,7 +17,7 @@ export const config = {
   },
 
   business: {
-    name: process.env.BUSINESS_NAME || 'Amityville Holistic Center',
+    name: process.env.BUSINESS_NAME || 'Amityville Acupuncture',
     timezone: process.env.TIMEZONE || 'America/New_York',
     defaultDuration: parseInt(process.env.DEFAULT_APPOINTMENT_DURATION || '60', 10),
     phone: process.env.BUSINESS_PHONE || '',
