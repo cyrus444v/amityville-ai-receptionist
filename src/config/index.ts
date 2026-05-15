@@ -6,7 +6,9 @@ export const config = {
 
   google: {
     serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
-    privateKey: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    privateKey: (process.env.GOOGLE_PRIVATE_KEY || '')
+      .replace(/^["']|["']$/g, '')   // strip surrounding quotes if pasted with them
+      .replace(/\\n/g, '\n'),         // convert \n escape sequences to real newlines
     calendarId: process.env.GOOGLE_CALENDAR_ID || 'primary',
   },
 
