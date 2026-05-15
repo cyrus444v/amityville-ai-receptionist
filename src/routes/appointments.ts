@@ -5,6 +5,7 @@ import {
   RescheduleAppointmentSchema,
   CancelAppointmentSchema,
 } from '../utils/validation';
+import { normaliseDate, normaliseTime } from '../utils/parse-datetime';
 import {
   checkAvailability,
   createAppointment,
@@ -18,7 +19,12 @@ const router = Router();
 
 // POST /check-availability
 router.post('/check-availability', async (req: Request, res: Response) => {
-  const parsed = CheckAvailabilitySchema.safeParse(req.body);
+  // Normalise natural-language date/time before validation
+  const body = { ...req.body };
+  if (body.date) body.date = normaliseDate(body.date) ?? body.date;
+  if (body.time) body.time = normaliseTime(body.time) ?? body.time;
+
+  const parsed = CheckAvailabilitySchema.safeParse(body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.flatten() });
   }
@@ -41,7 +47,11 @@ router.post('/check-availability', async (req: Request, res: Response) => {
 
 // POST /create-appointment
 router.post('/create-appointment', async (req: Request, res: Response) => {
-  const parsed = CreateAppointmentSchema.safeParse(req.body);
+  const body = { ...req.body };
+  if (body.date) body.date = normaliseDate(body.date) ?? body.date;
+  if (body.time) body.time = normaliseTime(body.time) ?? body.time;
+
+  const parsed = CreateAppointmentSchema.safeParse(body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.flatten() });
   }
