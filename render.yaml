@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: ai-receptionist-backend
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GOOGLE_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_CALENDAR_ID
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: BUSINESS_NAME
+        value: Amityville Holistic Center
+      - key: BUSINESS_PHONE
+        sync: false
+      - key: BUSINESS_ADDRESS
+        sync: false
+      - key: BUSINESS_WEBSITE
+        sync: false
+      - key: TIMEZONE
+        value: America/New_York
+      - key: DEFAULT_APPOINTMENT_DURATION
+        value: "60"

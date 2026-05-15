@@ -1,27 +1,40 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import toolsRouter from "./routes/tools";
-
-dotenv.config();
+import express from 'express';
+import cors from 'cors';
+import { config } from './config';
+import { logger } from './utils/logger';
+import appointmentsRouter from './routes/appointments';
+import callbacksRouter from './routes/callbacks';
+import toolsRouter from './routes/tools';
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 3001;
-
-app.get("/", (req, res) => {
-  res.json({ message: "AI Receptionist Backend Running" });
+// Health check
+app.get('/', (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'AI Receptionist Backend',
+    timestamp: new Date().toISOString(),
+  });
 });
 
-app.get("/test", (req, res) => {
-  res.json({ success: true });
+// Retell AI tool endpoints
+app.use('/', appointmentsRouter);  // /check-availability, /create-appointment, /reschedule-appointment, /cancel-appointment
+app.use('/', callbacksRouter);      // /create-callback
+
+// Utility endpoints
+app.use('/', toolsRouter);          // /search-services, /services, /clinic-info
+
+// Global error handler
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error('Unhandled error', { error: err.message });
+  res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
-app.use("/tool", toolsRouter);
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(config.port, () => {
+  logger.info(`Server running on port ${config.port}`);
 });
+
+export default app;
