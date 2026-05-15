@@ -25,12 +25,7 @@ export const config = {
     serviceAccountEmail: googleCreds.email,
     privateKey: googleCreds.key,
     calendarId: process.env.GOOGLE_CALENDAR_ID || 'primary',
-  },
-
-  supabase: {
-    url: process.env.SUPABASE_URL || '',
-    anonKey: process.env.SUPABASE_ANON_KEY || '',
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+    spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID || '',
   },
 
   business: {

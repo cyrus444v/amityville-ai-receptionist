@@ -7,20 +7,14 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
-        sync: false
-      - key: GOOGLE_PRIVATE_KEY
+      - key: GOOGLE_CREDENTIALS_BASE64
         sync: false
       - key: GOOGLE_CALENDAR_ID
         sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
+      - key: GOOGLE_SPREADSHEET_ID
         sync: false
       - key: BUSINESS_NAME
-        value: Amityville Holistic Center
+        value: Amityville Acupuncture
       - key: BUSINESS_PHONE
         sync: false
       - key: BUSINESS_ADDRESS
@@ -31,3 +25,9 @@ services:
         value: America/New_York
       - key: DEFAULT_APPOINTMENT_DURATION
         value: "60"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_REPLY_TO
+        sync: false

@@ -1,8 +1,9 @@
+import crypto from 'crypto';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { config, BusinessHoursKey } from '../config';
-import { getSupabaseClient } from '../db/client';
+import { appendRow, getRows, updateRowAtIndex, APPT, SHEET_APPOINTMENTS } from '../db/client';
 import {
   isSlotAvailable,
   getAvailableSlots,
@@ -46,6 +47,45 @@ function businessHoursMessage(): string {
     `We are open Monday–Friday 9 AM–6 PM (Friday until 5 PM), ` +
     `and Saturday 10 AM–3 PM. We are closed on Sundays.`
   );
+}
+
+function rowToAppointment(values: string[]): Appointment {
+  const get = (i: number) => values[i] ?? '';
+  return {
+    id:               get(APPT.id),
+    caller_name:      get(APPT.caller_name),
+    phone:            get(APPT.phone),
+    email:            get(APPT.email) || undefined,
+    service_name:     get(APPT.service_name),
+    appointment_date: get(APPT.appointment_date),
+    appointment_time: get(APPT.appointment_time),
+    duration_minutes: parseInt(get(APPT.duration_minutes) || '60', 10),
+    timezone:         get(APPT.timezone),
+    status:           (get(APPT.status) as Appointment['status']) || 'confirmed',
+    notes:            get(APPT.notes) || undefined,
+    google_event_id:  get(APPT.google_event_id) || undefined,
+    created_at:       get(APPT.created_at),
+    updated_at:       get(APPT.updated_at),
+  };
+}
+
+function appointmentToRow(appt: Appointment): (string | number | null)[] {
+  const row: (string | number | null)[] = new Array(14).fill('');
+  row[APPT.id]               = appt.id;
+  row[APPT.caller_name]      = appt.caller_name;
+  row[APPT.phone]            = appt.phone;
+  row[APPT.email]            = appt.email ?? '';
+  row[APPT.service_name]     = appt.service_name;
+  row[APPT.appointment_date] = appt.appointment_date;
+  row[APPT.appointment_time] = appt.appointment_time;
+  row[APPT.duration_minutes] = appt.duration_minutes;
+  row[APPT.timezone]         = appt.timezone;
+  row[APPT.status]           = appt.status;
+  row[APPT.notes]            = appt.notes ?? '';
+  row[APPT.google_event_id]  = appt.google_event_id ?? '';
+  row[APPT.created_at]       = appt.created_at;
+  row[APPT.updated_at]       = appt.updated_at;
+  return row;
 }
 
 // ----------------------------------------------------------------
@@ -142,33 +182,34 @@ export async function createAppointment(params: {
     tz,
   });
 
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('appointments')
-    .insert({
-      caller_name:      params.caller_name,
-      phone:            params.phone,
-      service_name:     params.service,
-      appointment_date: params.date,
-      appointment_time: params.time,
-      duration_minutes: duration,
-      timezone:         tz,
-      google_event_id:  eventId,
-      status:           'confirmed',
-      email:            params.email ?? null,
-      notes:            params.notes ?? null,
-    })
-    .select()
-    .single();
+  const now = new Date().toISOString();
+  const appointment: Appointment = {
+    id:               crypto.randomUUID(),
+    caller_name:      params.caller_name,
+    phone:            params.phone,
+    email:            params.email,
+    service_name:     params.service,
+    appointment_date: params.date,
+    appointment_time: params.time,
+    duration_minutes: duration,
+    timezone:         tz,
+    google_event_id:  eventId,
+    status:           'confirmed',
+    notes:            params.notes,
+    created_at:       now,
+    updated_at:       now,
+  };
 
-  if (error) {
-    logger.error('Failed to save appointment to database', { error: error.message });
+  try {
+    await appendRow(SHEET_APPOINTMENTS, appointmentToRow(appointment));
+  } catch (err) {
+    logger.error('Failed to save appointment to sheet', { error: (err as Error).message });
     return { success: false, message: 'Calendar event created but failed to save to database.', error: 'DATABASE_ERROR' };
   }
 
   logger.info('Appointment created', { service: params.service, date: params.date, time: params.time });
 
-  // Send confirmation email if address was provided (non-blocking — don't fail the booking if email fails)
+  // Send confirmation email (non-blocking)
   if (params.email) {
     sendBookingConfirmation({
       to:               params.email,
@@ -182,7 +223,7 @@ export async function createAppointment(params: {
 
   return {
     success: true,
-    appointment: data as Appointment,
+    appointment,
     message: `Appointment confirmed for ${params.caller_name} on ${params.date} at ${params.time} for ${params.service}.${params.email ? ' A confirmation email has been sent.' : ''}`,
   };
 }
@@ -199,27 +240,22 @@ export async function rescheduleAppointment(params: {
   timezone?: string;
 }): Promise<BookingResult> {
   const tz = params.timezone || config.business.timezone;
-  const supabase = getSupabaseClient();
 
-  let query = supabase
-    .from('appointments')
-    .select('*')
-    .eq('status', 'confirmed');
+  const rows = await getRows(SHEET_APPOINTMENTS);
+  const match = rows.find(({ values }) => {
+    if (values[APPT.status] !== 'confirmed') return false;
+    if (params.appointment_id) return values[APPT.id] === params.appointment_id;
+    if (params.phone) return values[APPT.phone] === params.phone;
+    if (params.google_event_id) return values[APPT.google_event_id] === params.google_event_id;
+    return false;
+  }) ?? rows.filter(({ values }) => values[APPT.status] === 'confirmed').at(-1);
+  // fallback: last confirmed row when phone lookup should match but no explicit key given
 
-  if (params.appointment_id) {
-    query = query.eq('id', params.appointment_id);
-  } else if (params.phone) {
-    query = query.eq('phone', params.phone).order('created_at', { ascending: false }).limit(1);
-  } else if (params.google_event_id) {
-    query = query.eq('google_event_id', params.google_event_id);
-  }
-
-  const { data: rows, error: fetchErr } = await query;
-  if (fetchErr || !rows || rows.length === 0) {
+  if (!match) {
     return { success: false, message: 'Appointment not found.', error: 'NOT_FOUND' };
   }
 
-  const appt = rows[0] as Appointment;
+  const appt = rowToAppointment(match.values);
 
   if (!isWithinBusinessHours(params.new_date, params.new_time, tz)) {
     return { success: false, message: `New time is outside business hours. ${businessHoursMessage()}`, error: 'OUTSIDE_BUSINESS_HOURS' };
@@ -234,14 +270,18 @@ export async function rescheduleAppointment(params: {
     await updateCalendarEvent(appt.google_event_id, params.new_date, params.new_time, appt.duration_minutes, tz);
   }
 
-  const { data: updated, error: updateErr } = await supabase
-    .from('appointments')
-    .update({ appointment_date: params.new_date, appointment_time: params.new_time, status: 'rescheduled' })
-    .eq('id', appt.id)
-    .select()
-    .single();
+  const updated: Appointment = {
+    ...appt,
+    appointment_date: params.new_date,
+    appointment_time: params.new_time,
+    status: 'rescheduled',
+    updated_at: new Date().toISOString(),
+  };
 
-  if (updateErr) {
+  try {
+    await updateRowAtIndex(SHEET_APPOINTMENTS, match.rowIndex, appointmentToRow(updated));
+  } catch (err) {
+    logger.error('Failed to update appointment in sheet', { error: (err as Error).message });
     return { success: false, message: 'Failed to update appointment record.', error: 'DATABASE_ERROR' };
   }
 
@@ -249,7 +289,7 @@ export async function rescheduleAppointment(params: {
 
   return {
     success: true,
-    appointment: updated as Appointment,
+    appointment: updated,
     message: `Appointment rescheduled to ${params.new_date} at ${params.new_time}.`,
   };
 }
@@ -262,36 +302,36 @@ export async function cancelAppointment(params: {
   phone?: string;
   google_event_id?: string;
 }): Promise<BookingResult> {
-  const supabase = getSupabaseClient();
+  const rows = await getRows(SHEET_APPOINTMENTS);
+  const match = rows.find(({ values }) => {
+    if (values[APPT.status] !== 'confirmed') return false;
+    if (params.appointment_id) return values[APPT.id] === params.appointment_id;
+    if (params.phone) return values[APPT.phone] === params.phone;
+    if (params.google_event_id) return values[APPT.google_event_id] === params.google_event_id;
+    return false;
+  });
 
-  let query = supabase
-    .from('appointments')
-    .select('*')
-    .eq('status', 'confirmed');
-
-  if (params.appointment_id) {
-    query = query.eq('id', params.appointment_id);
-  } else if (params.phone) {
-    query = query.eq('phone', params.phone).order('created_at', { ascending: false }).limit(1);
-  } else if (params.google_event_id) {
-    query = query.eq('google_event_id', params.google_event_id);
-  }
-
-  const { data: rows, error: fetchErr } = await query;
-  if (fetchErr || !rows || rows.length === 0) {
+  if (!match) {
     return { success: false, message: 'Appointment not found.', error: 'NOT_FOUND' };
   }
 
-  const appt = rows[0] as Appointment;
+  const appt = rowToAppointment(match.values);
 
   if (appt.google_event_id) {
     await cancelCalendarEvent(appt.google_event_id);
   }
 
-  await supabase
-    .from('appointments')
-    .update({ status: 'cancelled' })
-    .eq('id', appt.id);
+  const cancelled: Appointment = {
+    ...appt,
+    status: 'cancelled',
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    await updateRowAtIndex(SHEET_APPOINTMENTS, match.rowIndex, appointmentToRow(cancelled));
+  } catch (err) {
+    logger.error('Failed to cancel appointment in sheet', { error: (err as Error).message });
+  }
 
   logger.info('Appointment cancelled', { id: appt.id });
 

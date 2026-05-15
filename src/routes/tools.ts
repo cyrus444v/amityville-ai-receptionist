@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { google } from 'googleapis';
-import { getSupabaseClient } from '../db/client';
+import { getRows, SHEET_APPOINTMENTS } from '../db/client';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -86,14 +86,12 @@ router.get('/health', async (_req: Request, res: Response) => {
     checks.google_calendar = { ok: false, detail: (err as Error).message };
   }
 
-  // 2. Supabase — connectivity and table existence
+  // 2. Google Sheets — read access
   try {
-    const supabase = getSupabaseClient();
-    const { error } = await supabase.from('appointments').select('id').limit(1);
-    if (error) throw new Error(error.message);
-    checks.supabase = { ok: true, detail: 'Connected and appointments table exists' };
+    await getRows(SHEET_APPOINTMENTS);
+    checks.google_sheets = { ok: true, detail: 'Read access confirmed (Appointments sheet reachable)' };
   } catch (err) {
-    checks.supabase = { ok: false, detail: (err as Error).message };
+    checks.google_sheets = { ok: false, detail: (err as Error).message };
   }
 
   const allOk = Object.values(checks).every((c) => c.ok);

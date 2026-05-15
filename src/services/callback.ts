@@ -1,4 +1,5 @@
-import { getSupabaseClient } from '../db/client';
+import crypto from 'crypto';
+import { appendRow, CB, SHEET_CALLBACKS } from '../db/client';
 import { logger } from '../utils/logger';
 import type { Callback } from '../types';
 
@@ -7,21 +8,30 @@ export async function createCallback(params: {
   phone: string;
   reason?: string;
 }): Promise<{ success: boolean; callback?: Callback; message: string }> {
-  const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+  const callback: Callback = {
+    id:          crypto.randomUUID(),
+    caller_name: params.caller_name,
+    phone:       params.phone,
+    reason:      params.reason,
+    status:      'pending',
+    created_at:  now,
+    updated_at:  now,
+  };
 
-  const { data, error } = await supabase
-    .from('callbacks')
-    .insert({
-      caller_name: params.caller_name,
-      phone:       params.phone,
-      reason:      params.reason ?? null,
-      status:      'pending',
-    })
-    .select()
-    .single();
+  const row: (string | number | null)[] = new Array(7).fill('');
+  row[CB.id]          = callback.id;
+  row[CB.caller_name] = callback.caller_name;
+  row[CB.phone]       = callback.phone;
+  row[CB.reason]      = callback.reason ?? '';
+  row[CB.status]      = callback.status;
+  row[CB.created_at]  = callback.created_at;
+  row[CB.updated_at]  = callback.updated_at;
 
-  if (error) {
-    logger.error('Failed to save callback', { error: error.message });
+  try {
+    await appendRow(SHEET_CALLBACKS, row);
+  } catch (err) {
+    logger.error('Failed to save callback', { error: (err as Error).message });
     return { success: false, message: 'Failed to save callback request.' };
   }
 
@@ -29,7 +39,7 @@ export async function createCallback(params: {
 
   return {
     success: true,
-    callback: data as Callback,
+    callback,
     message: `Callback request saved for ${params.caller_name}. We will call you back as soon as possible.`,
   };
 }

@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config';
 import { logger } from './utils/logger';
+import { initSheets } from './db/client';
 import appointmentsRouter from './routes/appointments';
 import callbacksRouter from './routes/callbacks';
 import toolsRouter from './routes/tools';
@@ -31,6 +32,11 @@ app.use('/', toolsRouter);          // /search-services, /services, /clinic-info
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error('Unhandled error', { error: err.message });
   res.status(500).json({ success: false, message: 'Internal server error' });
+});
+
+// Ensure Appointments and Callbacks sheet tabs exist with correct headers
+initSheets().catch((err) => {
+  logger.error('Failed to initialise Google Sheets', { error: (err as Error).message });
 });
 
 const server = app.listen(config.port, () => {
