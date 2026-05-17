@@ -41,7 +41,7 @@ export const config = {
       wednesday: { open: '09:00', close: '17:00', closed: false },
       thursday:  { open: '00:00', close: '00:00', closed: true  },
       friday:    { open: '09:00', close: '17:00', closed: false },
-      saturday:  { open: '00:00', close: '00:00', closed: true  },
+      saturday:  { open: '09:00', close: '12:00', closed: false },
       sunday:    { open: '00:00', close: '00:00', closed: true  },
     },
   },
