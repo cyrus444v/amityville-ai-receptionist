@@ -56,6 +56,8 @@ function rowToAppointment(values: string[]): Appointment {
     caller_name:      get(APPT.caller_name),
     phone:            get(APPT.phone),
     email:            get(APPT.email) || undefined,
+    date_of_birth:    get(APPT.date_of_birth) || undefined,
+    is_new_patient:   get(APPT.is_new_patient) === 'true' ? true : get(APPT.is_new_patient) === 'false' ? false : undefined,
     service_name:     get(APPT.service_name),
     appointment_date: get(APPT.appointment_date),
     appointment_time: get(APPT.appointment_time),
@@ -70,11 +72,13 @@ function rowToAppointment(values: string[]): Appointment {
 }
 
 function appointmentToRow(appt: Appointment): (string | number | null)[] {
-  const row: (string | number | null)[] = new Array(14).fill('');
+  const row: (string | number | null)[] = new Array(16).fill('');
   row[APPT.id]               = appt.id;
   row[APPT.caller_name]      = appt.caller_name;
   row[APPT.phone]            = appt.phone;
   row[APPT.email]            = appt.email ?? '';
+  row[APPT.date_of_birth]    = appt.date_of_birth ?? '';
+  row[APPT.is_new_patient]   = appt.is_new_patient !== undefined ? String(appt.is_new_patient) : '';
   row[APPT.service_name]     = appt.service_name;
   row[APPT.appointment_date] = appt.appointment_date;
   row[APPT.appointment_time] = appt.appointment_time;
@@ -150,6 +154,8 @@ export async function createAppointment(params: {
   caller_name: string;
   phone: string;
   email?: string;
+  date_of_birth?: string;
+  is_new_patient?: boolean;
   service: string;
   date: string;
   time: string;
@@ -188,6 +194,8 @@ export async function createAppointment(params: {
     caller_name:      params.caller_name,
     phone:            params.phone,
     email:            params.email,
+    date_of_birth:    params.date_of_birth,
+    is_new_patient:   params.is_new_patient,
     service_name:     params.service,
     appointment_date: params.date,
     appointment_time: params.time,

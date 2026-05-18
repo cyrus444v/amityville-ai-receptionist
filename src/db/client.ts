@@ -7,16 +7,18 @@ export const APPT = {
   caller_name: 1,
   phone: 2,
   email: 3,
-  service_name: 4,
-  appointment_date: 5,
-  appointment_time: 6,
-  duration_minutes: 7,
-  timezone: 8,
-  status: 9,
-  notes: 10,
-  google_event_id: 11,
-  created_at: 12,
-  updated_at: 13,
+  date_of_birth: 4,
+  is_new_patient: 5,
+  service_name: 6,
+  appointment_date: 7,
+  appointment_time: 8,
+  duration_minutes: 9,
+  timezone: 10,
+  status: 11,
+  notes: 12,
+  google_event_id: 13,
+  created_at: 14,
+  updated_at: 15,
 } as const;
 
 export const CB = {
@@ -33,8 +35,8 @@ export const SHEET_APPOINTMENTS = 'Appointments';
 export const SHEET_CALLBACKS = 'Callbacks';
 
 const APPT_HEADERS = [
-  'id', 'caller_name', 'phone', 'email', 'service_name',
-  'appointment_date', 'appointment_time', 'duration_minutes', 'timezone',
+  'id', 'caller_name', 'phone', 'email', 'date_of_birth', 'is_new_patient',
+  'service_name', 'appointment_date', 'appointment_time', 'duration_minutes', 'timezone',
   'status', 'notes', 'google_event_id', 'created_at', 'updated_at',
 ];
 

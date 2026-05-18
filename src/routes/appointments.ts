@@ -48,9 +48,10 @@ router.post('/check-availability', async (req: Request, res: Response) => {
 // POST /create-appointment
 router.post('/create-appointment', async (req: Request, res: Response) => {
   const body = { ...req.body };
-  if (body.date)  body.date  = normaliseDate(body.date)   ?? body.date;
-  if (body.time)  body.time  = normaliseTime(body.time)   ?? body.time;
-  if (body.phone) body.phone = normalisePhone(body.phone) ?? body.phone;
+  if (body.date)          body.date          = normaliseDate(body.date)          ?? body.date;
+  if (body.time)          body.time          = normaliseTime(body.time)          ?? body.time;
+  if (body.phone)         body.phone         = normalisePhone(body.phone)        ?? body.phone;
+  if (body.date_of_birth) body.date_of_birth = normaliseDate(body.date_of_birth) ?? body.date_of_birth;
 
   const parsed = CreateAppointmentSchema.safeParse(body);
   if (!parsed.success) {

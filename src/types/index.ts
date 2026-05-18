@@ -3,6 +3,8 @@ export interface Appointment {
   caller_name: string;
   phone: string;
   email?: string;
+  date_of_birth?: string;
+  is_new_patient?: boolean;
   service_id?: string;
   service_name: string;
   appointment_date: string;   // YYYY-MM-DD

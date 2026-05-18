@@ -14,7 +14,9 @@ export const CheckAvailabilitySchema = z.object({
 export const CreateAppointmentSchema = z.object({
   caller_name:      z.string().min(1, 'Name is required').max(100),
   phone:            z.string().min(4, 'Phone number required').max(30),
+  date_of_birth:    z.string().optional(), // YYYY-MM-DD or spoken e.g. "January 5th 1990"
   email:            z.string().email('Invalid email address').optional(),
+  is_new_patient:   z.boolean().optional(),
   service:          z.string().min(1, 'Service is required'),
   date:             z.string().regex(dateRegex, 'Date must be YYYY-MM-DD'),
   time:             z.string().regex(timeRegex, 'Time must be HH:MM'),
