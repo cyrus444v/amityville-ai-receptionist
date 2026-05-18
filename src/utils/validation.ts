@@ -49,7 +49,6 @@ export const CancelAppointmentSchema = z.object({
 export const CreateCallbackSchema = z.object({
   caller_name: z.string().min(1, 'Name is required').max(100),
   phone:       z.string().min(4, 'Phone number required').max(30),
-  reason:      z.string().max(500).optional(),
 });
 
 export type CheckAvailabilityInput      = z.infer<typeof CheckAvailabilitySchema>;

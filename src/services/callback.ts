@@ -6,24 +6,21 @@ import type { Callback } from '../types';
 export async function createCallback(params: {
   caller_name: string;
   phone: string;
-  reason?: string;
 }): Promise<{ success: boolean; callback?: Callback; message: string }> {
   const now = new Date().toISOString();
   const callback: Callback = {
     id:          crypto.randomUUID(),
     caller_name: params.caller_name,
     phone:       params.phone,
-    reason:      params.reason,
     status:      'pending',
     created_at:  now,
     updated_at:  now,
   };
 
-  const row: (string | number | null)[] = new Array(7).fill('');
+  const row: (string | number | null)[] = new Array(6).fill('');
   row[CB.id]          = callback.id;
   row[CB.caller_name] = callback.caller_name;
   row[CB.phone]       = callback.phone;
-  row[CB.reason]      = callback.reason ?? '';
   row[CB.status]      = callback.status;
   row[CB.created_at]  = callback.created_at;
   row[CB.updated_at]  = callback.updated_at;

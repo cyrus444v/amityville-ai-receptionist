@@ -151,10 +151,6 @@
         "phone": {
           "type": "string",
           "description": "The caller's phone number."
-        },
-        "reason": {
-          "type": "string",
-          "description": "Brief description of why they're calling or what they need. Optional."
         }
       },
       "required": ["caller_name", "phone"]

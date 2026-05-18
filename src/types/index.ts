@@ -22,7 +22,6 @@ export interface Callback {
   id: string;
   caller_name: string;
   phone: string;
-  reason?: string;
   status: 'pending' | 'completed' | 'missed';
   created_at: string;
   updated_at: string;

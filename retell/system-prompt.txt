@@ -133,9 +133,8 @@ STEP 6 — Confirm the new details.
 CALLBACK FLOW:
 STEP 1 — Ask: "Can I get your name?"
 STEP 2 — Ask: "And the best number to call you back on?"
-STEP 3 — Ask: "What's it regarding?" (optional)
-STEP 4 — Call create_callback.
-STEP 5 — "We'll give you a call back as soon as possible."
+STEP 3 — Call create_callback.
+STEP 4 — "We'll give you a call back as soon as possible."
 
 ---
 

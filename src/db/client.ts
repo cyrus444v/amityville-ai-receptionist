@@ -25,10 +25,9 @@ export const CB = {
   id: 0,
   caller_name: 1,
   phone: 2,
-  reason: 3,
-  status: 4,
-  created_at: 5,
-  updated_at: 6,
+  status: 3,
+  created_at: 4,
+  updated_at: 5,
 } as const;
 
 export const SHEET_APPOINTMENTS = 'Appointments';
@@ -41,7 +40,7 @@ const APPT_HEADERS = [
 ];
 
 const CB_HEADERS = [
-  'id', 'caller_name', 'phone', 'reason', 'status', 'created_at', 'updated_at',
+  'id', 'caller_name', 'phone', 'status', 'created_at', 'updated_at',
 ];
 
 function getAuth() {
