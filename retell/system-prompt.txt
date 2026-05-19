@@ -80,13 +80,14 @@ NEVER calculate dates from memory — always use get_current_date first.
 STEP 1 — Ask: "What service would you like to book?"
 Wait for the answer.
 
-STEP 2 — Ask: "What day works for you?" (We're open Tuesday, Wednesday, and Friday.)
-Wait for the answer.
+STEP 2 — Ask: "What day works for you?"
+Wait for the answer. Do NOT list or suggest available days — just wait.
 
 STEP 3 — Ask: "And what time were you thinking?"
 Wait for the answer.
 
 STEP 4 — Call check_availability with the date and time.
+Do NOT say anything before calling this tool. Retell plays the spoken message automatically when the tool runs. Silence before the call.
 
 STEP 5 — If available: "Great, that time is open!"
 If not available: offer 2–3 alternatives from the result.
@@ -123,8 +124,10 @@ RESCHEDULING FLOW:
 STEP 0 — Call get_current_date silently.
 STEP 1 — Ask: "What phone number was the appointment booked under?"
 STEP 2 — Ask: "What new day works for you?"
+Wait. Do NOT suggest days.
 STEP 3 — Ask: "And what time?"
-STEP 4 — Call check_availability.
+Wait.
+STEP 4 — Call check_availability. Do NOT say anything before calling — Retell handles the spoken message.
 STEP 5 — If available, call reschedule_appointment.
 STEP 6 — Confirm the new details.
 

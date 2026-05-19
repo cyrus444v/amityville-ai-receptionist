@@ -44,13 +44,24 @@ router.get('/services', (_req: Request, res: Response) => {
 router.get('/current-date', (_req: Request, res: Response) => {
   const tz = config.business.timezone;
   const now = dayjs().tz(tz);
+  const tomorrow = now.add(1, 'day');
+  const dayAfter = now.add(2, 'day');
   return res.json({
     success: true,
-    date: now.format('YYYY-MM-DD'),
-    day_of_week: now.format('dddd'),
-    time: now.format('HH:mm'),
+    today: {
+      date: now.format('YYYY-MM-DD'),
+      day_of_week: now.format('dddd'),
+    },
+    tomorrow: {
+      date: tomorrow.format('YYYY-MM-DD'),
+      day_of_week: tomorrow.format('dddd'),
+    },
+    day_after_tomorrow: {
+      date: dayAfter.format('YYYY-MM-DD'),
+      day_of_week: dayAfter.format('dddd'),
+    },
+    current_time: now.format('HH:mm'),
     timezone: tz,
-    iso: now.toISOString(),
   });
 });
 

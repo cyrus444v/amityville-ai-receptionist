@@ -43,10 +43,19 @@ function isWithinBusinessHours(date: string, time: string, tz: string): boolean 
 }
 
 function businessHoursMessage(): string {
-  return (
-    `We are open Monday–Friday 9 AM–6 PM (Friday until 5 PM), ` +
-    `and Saturday 10 AM–3 PM. We are closed on Sundays.`
-  );
+  const hours = config.business.businessHours;
+  const days = Object.entries(hours)
+    .filter(([, v]) => !v.closed)
+    .map(([day, v]) => {
+      const fmt = (t: string) => {
+        const [h, m] = t.split(':').map(Number);
+        const period = h < 12 ? 'AM' : 'PM';
+        const hour = h % 12 === 0 ? 12 : h % 12;
+        return m === 0 ? `${hour} ${period}` : `${hour}:${String(m).padStart(2, '0')} ${period}`;
+      };
+      return `${day.charAt(0).toUpperCase() + day.slice(1)} ${fmt(v.open)}–${fmt(v.close)}`;
+    });
+  return `Our hours are: ${days.join(', ')}.`;
 }
 
 function rowToAppointment(values: string[]): Appointment {
