@@ -82,7 +82,7 @@ export async function isSlotAvailable(
 }
 
 // ----------------------------------------------------------------
-// Get all available 15-min-increment slots within a window
+// Get all available 10-min-increment slots within a window
 // ----------------------------------------------------------------
 export async function getAvailableSlots(
   date: string,
@@ -108,7 +108,7 @@ export async function getAvailableSlots(
 
     if (!conflict) slots.push(current.format('HH:mm'));
 
-    current = current.add(15, 'minute');
+    current = current.add(10, 'minute');
   }
 
   return slots;
