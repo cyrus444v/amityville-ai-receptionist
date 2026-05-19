@@ -2,7 +2,7 @@
   {
     "name": "get_current_date",
     "description": "Returns today's date, day of week, and current time in Eastern Time. Call this at the START of any booking, rescheduling, or availability check — before calculating relative dates like 'tomorrow', 'next Wednesday', or 'this Friday'. Never guess the date without calling this first.",
-    "url": "https://amityville-ai-receptionist.onrender.com/current-date",
+    "url": "http://18.205.243.17:8080/current-date",
     "speak_during_execution": false,
     "execution_message_description": "No spoken message needed — this is a silent background call.",
     "parameters": {
@@ -14,7 +14,7 @@
   {
     "name": "check_availability",
     "description": "Check if a specific date and time is available for an appointment. Always call this before offering or confirming any time slot. If no time is provided, returns all available slots for that day.",
-    "url": "https://amityville-ai-receptionist.onrender.com/check-availability",
+    "url": "http://18.205.243.17:8080/check-availability",
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Let me check our availability for that day...' or 'One moment while I look that up.'",
     "parameters": {
@@ -43,7 +43,7 @@
   {
     "name": "create_appointment",
     "description": "Book an appointment after availability has been confirmed. Only call this after check_availability has returned available=true AND the caller has confirmed the time slot, provided their name, phone, and optionally email.",
-    "url": "https://amityville-ai-receptionist.onrender.com/create-appointment",
+    "url": "http://18.205.243.17:8080/create-appointment",
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Perfect, let me get that booked for you now...'",
     "parameters": {
@@ -88,7 +88,7 @@
   {
     "name": "reschedule_appointment",
     "description": "Reschedule an existing confirmed appointment to a new date and time. Always check availability for the new slot before calling this.",
-    "url": "https://amityville-ai-receptionist.onrender.com/reschedule-appointment",
+    "url": "http://18.205.243.17:8080/reschedule-appointment",
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Let me update that appointment for you...'",
     "parameters": {
@@ -117,7 +117,7 @@
   {
     "name": "cancel_appointment",
     "description": "Cancel an existing appointment. Ask the caller for the phone number used to book the appointment to identify it.",
-    "url": "https://amityville-ai-receptionist.onrender.com/cancel-appointment",
+    "url": "http://18.205.243.17:8080/cancel-appointment",
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Let me take care of that cancellation for you...'",
     "parameters": {
@@ -138,7 +138,7 @@
   {
     "name": "create_callback",
     "description": "Save a callback request when a caller wants to be called back by the team. Use this when the caller can't get what they need right now, prefers to speak with a human, or explicitly asks for a callback.",
-    "url": "https://amityville-ai-receptionist.onrender.com/create-callback",
+    "url": "http://18.205.243.17:8080/create-callback",
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'I'll get that request in for you right now...'",
     "parameters": {
@@ -159,7 +159,7 @@
   {
     "name": "search_services",
     "description": "Search for services by name, category, or symptom. Use this when a caller asks what services are offered, asks about a specific treatment, or describes a symptom or condition.",
-    "url": "https://amityville-ai-receptionist.onrender.com/search-services",
+    "url": "http://18.205.243.17:8080/search-services",
     "speak_during_execution": false,
     "execution_message_description": "No spoken message needed — response is fast.",
     "parameters": {
