@@ -129,7 +129,7 @@ export async function checkAvailability(
 
     const available = await isSlotAvailable(date, time, durationMinutes, tz);
     if (available) {
-      return { available: true, message: `${date} at ${time} is available.` };
+      return { available: true, status: 'AVAILABLE', message: `${date} at ${time} is available. Proceed with booking.` };
     }
 
     const slots = await getAvailableSlots(date, durationMinutes, hours.open, hours.close, tz);
@@ -139,6 +139,7 @@ export async function checkAvailability(
 
     return {
       available: false,
+      status: 'NOT_AVAILABLE',
       slots: slots.map((s) => ({ date, time: s, available: true })),
       message: `${date} at ${time} is not available.${slotsMsg}`,
     };
