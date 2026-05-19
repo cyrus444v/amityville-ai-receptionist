@@ -1,0 +1,55 @@
+{
+  "family": "ai-receptionist-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::668764275927:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::668764275927:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "ai-receptionist-backend",
+      "image": "668764275927.dkr.ecr.us-east-1.amazonaws.com/ai-receptionist-backend:latest",
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        { "name": "NODE_ENV",                       "value": "production" },
+        { "name": "PORT",                           "value": "8080" },
+        { "name": "BUSINESS_NAME",                  "value": "Amityville Acupuncture" },
+        { "name": "TIMEZONE",                       "value": "America/New_York" },
+        { "name": "DEFAULT_APPOINTMENT_DURATION",   "value": "60" },
+        { "name": "GOOGLE_CALENDAR_ID",             "value": "cyrus.lang1@gmail.com" },
+        { "name": "GOOGLE_SPREADSHEET_ID",          "value": "1Nn7nMjzC0SkqP2PcjE69i_J-tmGiDUsXyCIpSjCDTjs" },
+        { "name": "EMAIL_FROM",                     "value": "onboarding@resend.dev" },
+        { "name": "EMAIL_REPLY_TO",                 "value": "cyrus.lang@ai-vance.de" },
+        { "name": "BUSINESS_NAME",                  "value": "Amityville Acupuncture, Microneedling & Wellness" },
+        { "name": "BUSINESS_PHONE",                 "value": "+1 631-691-0200" },
+        { "name": "BUSINESS_ADDRESS",               "value": "209 Broadway, Amityville, NY 11701" },
+        { "name": "BUSINESS_WEBSITE",               "value": "https://www.amityvillewellness.com" }
+      ],
+      "secrets": [
+        {
+          "name": "GOOGLE_CREDENTIALS_BASE64",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:668764275927:secret:ai-receptionist/GOOGLE_CREDENTIALS_BASE64"
+        },
+        {
+          "name": "RESEND_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:668764275927:secret:ai-receptionist/RESEND_API_KEY"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ai-receptionist-backend",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
