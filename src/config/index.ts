@@ -5,7 +5,7 @@ dotenv.config();
 // This avoids all private key formatting issues with env vars
 function getGoogleCredentials() {
   if (process.env.GOOGLE_CREDENTIALS_BASE64) {
-    const json = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString('utf8'));
+    const json = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64.trim(), 'base64').toString('utf8').trim());
     return { email: json.client_email, key: json.private_key };
   }
   return {
