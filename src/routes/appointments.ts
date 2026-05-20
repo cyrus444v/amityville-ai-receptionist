@@ -41,7 +41,14 @@ router.post('/check-availability', async (req: Request, res: Response) => {
     return res.json({ success: true, ...result });
   } catch (err) {
     logger.error('check-availability failed', { error: (err as Error).message });
-    return res.status(500).json({ success: false, message: 'Failed to check availability. Please try again.' });
+    // Return 200 with a structured error so the agent gets JSON it can act on
+    // instead of an HTTP error that triggers unscripted improvisation
+    return res.json({
+      success: false,
+      available: false,
+      error: 'SERVICE_ERROR',
+      message: 'I was unable to check availability right now due to a technical issue. Please try again in a moment.',
+    });
   }
 });
 

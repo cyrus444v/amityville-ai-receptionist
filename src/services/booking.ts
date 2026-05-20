@@ -112,19 +112,19 @@ export async function checkAvailability(
 ): Promise<AvailabilityResult> {
   const today = dayjs.tz(new Date().toISOString(), tz).startOf('day');
   if (dayjs.tz(date, tz).isBefore(today)) {
-    return { available: false, message: 'Cannot book appointments in the past.' };
+    return { available: false, status: 'PAST_DATE', message: 'Cannot book appointments in the past.' };
   }
 
   const key = getDayKey(date, tz);
   const hours = config.business.businessHours[key];
 
   if (!hours || hours.closed) {
-    return { available: false, message: `We are closed on ${dayjs.tz(date, tz).format('dddd')}s. ${businessHoursMessage()}` };
+    return { available: false, status: 'CLOSED_DAY', message: `We are closed on ${dayjs.tz(date, tz).format('dddd')}s. ${businessHoursMessage()}` };
   }
 
   if (time) {
     if (!isWithinBusinessHours(date, time, tz)) {
-      return { available: false, message: `That time is outside our business hours. ${businessHoursMessage()}` };
+      return { available: false, status: 'OUTSIDE_HOURS', message: `That time is outside our business hours. ${businessHoursMessage()}` };
     }
 
     const available = await isSlotAvailable(date, time, durationMinutes, tz);

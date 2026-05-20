@@ -44,6 +44,7 @@ export interface TimeSlot {
 
 export interface AvailabilityResult {
   available: boolean;
+  status?: string;
   slots?: TimeSlot[];
   message: string;
 }
