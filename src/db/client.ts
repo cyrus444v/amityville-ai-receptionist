@@ -43,16 +43,20 @@ const CB_HEADERS = [
   'id', 'caller_name', 'phone', 'status', 'created_at', 'updated_at',
 ];
 
-function getAuth() {
-  return new google.auth.JWT({
+// Cached at module level — avoids a new token exchange on every Sheets operation
+let _sheetsClient: ReturnType<typeof google.sheets> | null = null;
+
+function getSheets() {
+  if (_sheetsClient) return _sheetsClient;
+
+  const auth = new google.auth.JWT({
     email: config.google.serviceAccountEmail,
     key: config.google.privateKey,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
-}
 
-function getSheets() {
-  return google.sheets({ version: 'v4', auth: getAuth() });
+  _sheetsClient = google.sheets({ version: 'v4', auth });
+  return _sheetsClient;
 }
 
 export async function initSheets(): Promise<void> {

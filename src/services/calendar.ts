@@ -7,22 +7,25 @@ import { config } from '../config';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-function assertCalendarConfigured(): void {
-  if (!config.google.serviceAccountEmail || !config.google.privateKey) {
-    throw new Error(
-      'Google Calendar not configured. Set GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, and GOOGLE_CALENDAR_ID.'
-    );
-  }
-}
+// Cached at module level — JWT access token is reused across requests
+// instead of fetching a new one from Google on every calendar call
+let _calendarClient: ReturnType<typeof google.calendar> | null = null;
 
 function getCalendarClient() {
-  assertCalendarConfigured();
+  if (_calendarClient) return _calendarClient;
+
+  if (!config.google.serviceAccountEmail || !config.google.privateKey) {
+    throw new Error('Google Calendar not configured: GOOGLE_CREDENTIALS_BASE64 (or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY) must be set.');
+  }
+
   const auth = new google.auth.JWT({
     email: config.google.serviceAccountEmail,
     key: config.google.privateKey,
     scopes: ['https://www.googleapis.com/auth/calendar'],
   });
-  return google.calendar({ version: 'v3', auth });
+
+  _calendarClient = google.calendar({ version: 'v3', auth });
+  return _calendarClient;
 }
 
 export interface BusyPeriod {
