@@ -13,6 +13,7 @@ import {
 } from './calendar';
 import { logger } from '../utils/logger';
 import { sendBookingConfirmation } from './email';
+import { normalisePhone } from '../utils/parse-datetime';
 import type { Appointment, AvailabilityResult, BookingResult } from '../types';
 
 dayjs.extend(utc);
@@ -261,12 +262,15 @@ export async function rescheduleAppointment(params: {
 
   const rows = await getRows(SHEET_APPOINTMENTS);
   const match = rows.find(({ values }) => {
-    if (values[APPT.status] !== 'confirmed') return false;
-    if (params.appointment_id) return values[APPT.id] === params.appointment_id;
-    if (params.phone) return values[APPT.phone] === params.phone;
-    if (params.google_event_id) return values[APPT.google_event_id] === params.google_event_id;
+    const storedStatus = (values[APPT.status] ?? '').trim();
+    if (storedStatus !== 'confirmed') return false;
+    if (params.appointment_id) return (values[APPT.id] ?? '').trim() === params.appointment_id;
+    if (params.phone) {
+      return normalisePhone((values[APPT.phone] ?? '').trim()) === params.phone;
+    }
+    if (params.google_event_id) return (values[APPT.google_event_id] ?? '').trim() === params.google_event_id;
     return false;
-  }) ?? rows.filter(({ values }) => values[APPT.status] === 'confirmed').at(-1);
+  }) ?? rows.filter(({ values }) => (values[APPT.status] ?? '').trim() === 'confirmed').at(-1);
   // fallback: last confirmed row when phone lookup should match but no explicit key given
 
   if (!match) {
@@ -322,10 +326,11 @@ export async function cancelAppointment(params: {
 }): Promise<BookingResult> {
   const rows = await getRows(SHEET_APPOINTMENTS);
   const match = rows.find(({ values }) => {
-    if (values[APPT.status] !== 'confirmed') return false;
-    if (params.appointment_id) return values[APPT.id] === params.appointment_id;
-    if (params.phone) return values[APPT.phone] === params.phone;
-    if (params.google_event_id) return values[APPT.google_event_id] === params.google_event_id;
+    const storedStatus = (values[APPT.status] ?? '').trim();
+    if (storedStatus !== 'confirmed') return false;
+    if (params.appointment_id) return (values[APPT.id] ?? '').trim() === params.appointment_id;
+    if (params.phone) return normalisePhone((values[APPT.phone] ?? '').trim()) === params.phone;
+    if (params.google_event_id) return (values[APPT.google_event_id] ?? '').trim() === params.google_event_id;
     return false;
   });
 

@@ -114,9 +114,16 @@ router.post('/find-appointment', async (req: Request, res: Response) => {
   try {
     const { getRows, SHEET_APPOINTMENTS, APPT } = await import('../db/client');
     const rows = await getRows(SHEET_APPOINTMENTS);
-    const match = rows.find(({ values }) =>
-      values[APPT.phone] === body.phone && values[APPT.status] === 'confirmed'
-    );
+    const incomingPhone = body.phone;
+    logger.info('find-appointment lookup', {
+      incoming: incomingPhone,
+      stored_phones: rows.map(r => r.values[APPT.phone]),
+    });
+    const match = rows.find(({ values }) => {
+      const storedPhone  = normalisePhone((values[APPT.phone]  ?? '').trim());
+      const storedStatus = (values[APPT.status] ?? '').trim();
+      return storedPhone === incomingPhone && storedStatus === 'confirmed';
+    });
 
     if (!match) {
       return res.json({
