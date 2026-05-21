@@ -53,6 +53,7 @@ function getSheets() {
     email: config.google.serviceAccountEmail,
     key: config.google.privateKey,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    subject: config.google.impersonateEmail || undefined,
   });
 
   _sheetsClient = google.sheets({ version: 'v4', auth });

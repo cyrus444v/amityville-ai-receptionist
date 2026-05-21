@@ -26,6 +26,7 @@ export const config = {
     privateKey: googleCreds.key,
     calendarId: process.env.GOOGLE_CALENDAR_ID || 'primary',
     spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID || '',
+    impersonateEmail: process.env.GOOGLE_IMPERSONATE_EMAIL || '',
   },
 
   business: {

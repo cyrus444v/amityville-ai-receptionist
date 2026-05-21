@@ -22,6 +22,7 @@ function getCalendarClient() {
     email: config.google.serviceAccountEmail,
     key: config.google.privateKey,
     scopes: ['https://www.googleapis.com/auth/calendar'],
+    subject: config.google.impersonateEmail || undefined,
   });
 
   _calendarClient = google.calendar({ version: 'v3', auth });
