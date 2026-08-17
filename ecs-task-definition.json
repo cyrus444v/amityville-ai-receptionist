@@ -23,6 +23,8 @@
         { "name": "BUSINESS_NAME",                  "value": "Amityville Acupuncture" },
         { "name": "TIMEZONE",                       "value": "America/New_York" },
         { "name": "DEFAULT_APPOINTMENT_DURATION",   "value": "60" },
+        { "name": "COORDINATION_TABLE",             "value": "ai-receptionist-coordination" },
+        { "name": "COORDINATION_REGION",            "value": "us-east-1" },
         { "name": "GOOGLE_CALENDAR_ID",             "value": "cyrus.lang1@gmail.com" },
         { "name": "GOOGLE_SPREADSHEET_ID",          "value": "1Nn7nMjzC0SkqP2PcjE69i_J-tmGiDUsXyCIpSjCDTjs" },
         { "name": "EMAIL_FROM",                     "value": "onboarding@resend.dev" },
@@ -40,6 +42,18 @@
         {
           "name": "RESEND_API_KEY",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:668764275927:secret:ai-receptionist/RESEND_API_KEY"
+        },
+        {
+          "name": "TOOL_AUTH_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:668764275927:secret:ai-receptionist/TOOL_AUTH_SECRET"
+        },
+        {
+          "name": "APPOINTMENT_TOKEN_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:668764275927:secret:ai-receptionist/APPOINTMENT_TOKEN_SECRET"
+        },
+        {
+          "name": "RETELL_WEBHOOK_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:668764275927:secret:ai-receptionist/RETELL_WEBHOOK_SECRET"
         }
       ],
       "logConfiguration": {

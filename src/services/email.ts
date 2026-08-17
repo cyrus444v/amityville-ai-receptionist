@@ -33,6 +33,16 @@ function formatTime(time: string): string {
   return `${hour}:${String(m).padStart(2, '0')} ${period}`;
 }
 
+export function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  })[character]!);
+}
+
 export async function sendBookingConfirmation(params: ConfirmationEmailParams): Promise<void> {
   const resend = getResend();
 
@@ -42,6 +52,9 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
 
   const formattedDate = formatDate(params.date);
   const formattedTime = formatTime(params.time);
+  const safeFromName = escapeHtml(fromName);
+  const safeCallerName = escapeHtml(params.caller_name);
+  const safeService = escapeHtml(params.service);
 
   const { error } = await resend.emails.send({
     from: `${fromName} <${fromEmail}>`,
@@ -65,7 +78,7 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
           <tr>
             <td style="background:#2d6a4f;padding:32px 40px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;letter-spacing:0.3px;">
-                ${fromName}
+                ${safeFromName}
               </h1>
             </td>
           </tr>
@@ -73,7 +86,7 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
           <!-- Body -->
           <tr>
             <td style="padding:40px 40px 32px;">
-              <p style="margin:0 0 8px;color:#333;font-size:16px;">Hi ${params.caller_name},</p>
+              <p style="margin:0 0 8px;color:#333;font-size:16px;">Hi ${safeCallerName},</p>
               <p style="margin:0 0 32px;color:#555;font-size:15px;line-height:1.6;">
                 Your appointment has been confirmed. We look forward to seeing you!
               </p>
@@ -86,7 +99,7 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
                     <table cellpadding="0" cellspacing="0">
                       <tr>
                         <td style="padding:4px 0;color:#555;font-size:14px;width:80px;">Service</td>
-                        <td style="padding:4px 0;color:#1a1a1a;font-size:14px;font-weight:600;">${params.service}</td>
+                        <td style="padding:4px 0;color:#1a1a1a;font-size:14px;font-weight:600;">${safeService}</td>
                       </tr>
                       <tr>
                         <td style="padding:4px 0;color:#555;font-size:14px;">Date</td>
@@ -114,7 +127,7 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
           <!-- Footer -->
           <tr>
             <td style="background:#fafafa;border-top:1px solid #eee;padding:20px 40px;text-align:center;">
-              <p style="margin:0;color:#aaa;font-size:12px;">${fromName} · Amityville, NY</p>
+              <p style="margin:0;color:#aaa;font-size:12px;">${safeFromName} · Amityville, NY</p>
             </td>
           </tr>
 

@@ -40,7 +40,13 @@ export function normaliseDate(input: string): string | null {
   if (!input) return null;
   const s = input.trim();
 
-  if (DATE_RE.test(s)) return s;
+  if (DATE_RE.test(s)) {
+    const [year, month, day] = s.split('-').map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day
+      ? s
+      : null;
+  }
 
   const refDate = dayjs().tz(TZ).toDate();
   const parsed = chrono.parseDate(s, refDate, { forwardDate: true });
@@ -57,10 +63,21 @@ export function normaliseTime(input: string): string | null {
   if (!input) return null;
   const s = input.trim();
 
-  if (TIME_RE.test(s)) return s;
+  if (TIME_RE.test(s)) {
+    const [hour, minute] = s.split(':').map(Number);
+    return hour <= 23 && minute <= 59 ? s : null;
+  }
 
   // Convert spelled-out numbers before passing to chrono ("Two PM" → "2 PM")
   const digitised = replaceWordNumbers(s);
+
+  const militaryWords = digitised.match(/^(\d(?:\s+\d)?|\d{2})\s+hundred$/i);
+  if (militaryWords) {
+    const hour = Number(militaryWords[1].replace(/\s/g, ''));
+    if (hour >= 0 && hour <= 23) return `${String(hour).padStart(2, '0')}:00`;
+  }
+
+  if (!/\d/.test(digitised)) return null;
 
   const ref = chrono.parseDate(`today at ${digitised}`);
   if (ref) {
@@ -87,6 +104,7 @@ export function normalisePhone(input: string): string {
   const withDigits = replaceWordNumbers(input);
 
   // Strip everything except digits and leading +
-  const cleaned = withDigits.replace(/[^\d+]/g, '');
-  return cleaned || input;
+  const digits = withDigits.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1);
+  return digits || input;
 }

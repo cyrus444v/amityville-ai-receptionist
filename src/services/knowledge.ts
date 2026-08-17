@@ -27,10 +27,11 @@ export function getAllServices(): Service[] {
 }
 
 export function getServiceByName(name: string): Service | undefined {
-  const n = name.toLowerCase();
+  const n = name.toLowerCase().trim();
   return services.find(
     (s) =>
       s.name.toLowerCase() === n ||
+      n.startsWith(`${s.name.toLowerCase()} (`) ||
       s.service_id === n ||
       s.keywords.some((k) => k.toLowerCase() === n)
   );

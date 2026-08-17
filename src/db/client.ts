@@ -19,6 +19,7 @@ export const APPT = {
   google_event_id: 13,
   created_at: 14,
   updated_at: 15,
+  referral_source: 16,
 } as const;
 
 export const CB = {
@@ -37,6 +38,7 @@ const APPT_HEADERS = [
   'id', 'caller_name', 'phone', 'email', 'date_of_birth', 'is_new_patient',
   'service_name', 'appointment_date', 'appointment_time', 'duration_minutes', 'timezone',
   'status', 'notes', 'google_event_id', 'created_at', 'updated_at',
+  'referral_source',
 ];
 
 const CB_HEADERS = [

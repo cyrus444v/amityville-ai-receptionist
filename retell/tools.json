@@ -15,8 +15,8 @@
     "name": "check_availability",
     "description": "Check if a specific date and time is available for an appointment. Always call this before offering or confirming any time slot. If no time is provided, returns all available slots for that day.",
     "url": "https://api.amityvillewellness.com/check-availability",
-    "speak_during_execution": true,
-    "execution_message_description": "Say something like: 'Let me check our availability for that day...' or 'One moment while I look that up.'",
+    "speak_during_execution": false,
+    "execution_message_description": "Silent — no spoken message during availability check.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -41,29 +41,58 @@
     }
   },
   {
-    "name": "create_appointment",
-    "description": "Book an appointment after availability has been confirmed. Only call this after check_availability has returned available=true AND the caller has confirmed the time slot, provided their name, phone, and optionally email.",
-    "url": "https://api.amityvillewellness.com/create-appointment",
-    "speak_during_execution": true,
-    "execution_message_description": "Say something like: 'Perfect, let me get that booked for you now...'",
+    "name": "find_appointment",
+    "description": "Privately locate one confirmed appointment before rescheduling or cancellation. Retell must send the actual caller number in the configured x-retell-caller-phone dynamic header. If more than one appointment matches, ask for the original date and exact time and call again. Pass the returned appointment_id and appointment_token unchanged to the write tool; never speak the token.",
+    "url": "https://api.amityvillewellness.com/find-appointment",
+    "speak_during_execution": false,
+    "execution_message_description": "Silent — appointment details are returned only after caller-number verification.",
     "parameters": {
       "type": "object",
       "properties": {
-        "caller_name": {
+        "phone": {
           "type": "string",
-          "description": "The caller's full name."
+          "description": "The phone number the appointment was booked under. It must match the verified caller number supplied by Retell."
+        },
+        "appointment_date": {
+          "type": "string",
+          "description": "Original appointment date in YYYY-MM-DD format. Include this to disambiguate multiple appointments."
+        },
+        "appointment_time": {
+          "type": "string",
+          "description": "Original appointment time in HH:MM format. Include this with the date if needed to select exactly one appointment."
+        },
+        "appointment_token": {
+          "type": "string",
+          "description": "On the second lookup call, pass the private selection token returned by the first call. Never speak this value."
+        }
+      },
+      "required": ["phone"]
+    }
+  },
+  {
+    "name": "create_appointment",
+    "description": "Book an appointment after availability has been confirmed. Only call this after check_availability has returned available=true AND the caller has confirmed all details. Use full_name (not caller_name) for the patient name.",
+    "url": "https://api.amityvillewellness.com/create-appointment",
+    "speak_during_execution": false,
+    "execution_message_description": "Silent — do not speak while this runs. Confirmation is spoken AFTER the tool returns.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "full_name": {
+          "type": "string",
+          "description": "The caller's full name collected in booking Step 6."
         },
         "phone": {
           "type": "string",
-          "description": "The caller's phone number."
+          "description": "The caller's phone number collected in booking Step 7."
         },
         "email": {
           "type": "string",
-          "description": "The caller's email address for a confirmation email. Optional — only include if the caller provided one."
+          "description": "The caller's email address. Optional — only include if provided."
         },
         "service": {
           "type": "string",
-          "description": "The exact name of the service being booked (e.g. 'Acupuncture', 'Cosmetic Acupuncture')."
+          "description": "The exact name of the service being booked (e.g. 'Acupuncture (60 min)', 'Massage Therapy (60 min)')."
         },
         "date": {
           "type": "string",
@@ -73,21 +102,25 @@
           "type": "string",
           "description": "The appointment start time in HH:MM 24-hour format."
         },
-        "duration_minutes": {
-          "type": "integer",
-          "description": "Appointment duration in minutes. Optional — defaults to the service's standard duration."
+        "first_visit": {
+          "type": "boolean",
+          "description": "True if first visit, false if returning patient. From booking Step 8."
+        },
+        "referral_source": {
+          "type": "string",
+          "description": "How the caller heard about the practice. From booking Step 10."
         },
         "notes": {
           "type": "string",
-          "description": "Any additional notes or context the caller mentioned. Optional."
+          "description": "Sport, injury, or accident context from Step 9. Any other relevant notes."
         }
       },
-      "required": ["caller_name", "phone", "service", "date", "time"]
+      "required": ["full_name", "phone", "service", "date", "time"]
     }
   },
   {
     "name": "reschedule_appointment",
-    "description": "Reschedule an existing confirmed appointment to a new date and time. Always check availability for the new slot before calling this.",
+    "description": "Reschedule the exact appointment selected by find_appointment. Always check availability for the new slot first. Pass appointment_id and appointment_token exactly as returned; never speak the token.",
     "url": "https://api.amityvillewellness.com/reschedule-appointment",
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Let me update that appointment for you...'",
@@ -100,7 +133,11 @@
         },
         "appointment_id": {
           "type": "string",
-          "description": "The appointment ID, if known. Optional — phone number is usually easier to obtain."
+          "description": "The appointment ID returned by find_appointment."
+        },
+        "appointment_token": {
+          "type": "string",
+          "description": "The private appointment selection token returned by find_appointment. Never speak this value."
         },
         "new_date": {
           "type": "string",
@@ -111,12 +148,12 @@
           "description": "The new appointment start time in HH:MM 24-hour format."
         }
       },
-      "required": ["new_date", "new_time"]
+      "required": ["appointment_id", "appointment_token", "new_date", "new_time"]
     }
   },
   {
     "name": "cancel_appointment",
-    "description": "Cancel an existing appointment. Ask the caller for the phone number used to book the appointment to identify it.",
+    "description": "Cancel the exact appointment selected by find_appointment. Pass appointment_id and appointment_token exactly as returned; never speak the token.",
     "url": "https://api.amityvillewellness.com/cancel-appointment",
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Let me take care of that cancellation for you...'",
@@ -129,10 +166,14 @@
         },
         "appointment_id": {
           "type": "string",
-          "description": "The appointment ID, if known. Optional."
+          "description": "The appointment ID returned by find_appointment."
+        },
+        "appointment_token": {
+          "type": "string",
+          "description": "The private appointment selection token returned by find_appointment. Never speak this value."
         }
       },
-      "required": []
+      "required": ["appointment_id", "appointment_token"]
     }
   },
   {
