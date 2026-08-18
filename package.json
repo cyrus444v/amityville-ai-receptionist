@@ -13,7 +13,13 @@
     "start": "node dist/index.js",
     "harness": "vitest run tests/harness",
     "infra:render": "node infra/render.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "dev:local": "node -r ts-node/register -r ./harness/local-fakes-preload.cjs harness/local-server.ts",
+    "local:check": "node scripts/local-check.mjs",
+    "local:dynamo": "docker compose -f docker-compose.local.yml up -d",
+    "local:dynamo:init": "node scripts/bootstrap-local-dynamo.mjs",
+    "local:dynamo:down": "docker compose -f docker-compose.local.yml down",
+    "retell:tools": "node scripts/retell-tools-for.mjs"
   },
   "keywords": [],
   "author": "",
