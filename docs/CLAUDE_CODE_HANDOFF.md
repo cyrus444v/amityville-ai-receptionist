@@ -6,7 +6,7 @@ your job is to execute it and to correct it where reality disagrees.
 
 ## Where you are
 
-- Working tree: `voice-agent-pipeline/.worktrees/infra-20260818/claude-infra`
+- Repository: `/Users/cyruslang/aivance-voice-agent` (standalone clone, `origin` is GitHub)
 - Branch `agent/claude-infra-20260818`, three commits on the reviewed candidate:
   - `5e4e0c0` hardened security baseline (65 tests, reviewed evidence)
   - `b449511` declarative infrastructure, Retell header fix, offline harness
@@ -19,7 +19,9 @@ your job is to execute it and to correct it where reality disagrees.
 
 1. **Never touch `/Users/cyruslang/Desktop/amityville-ai-receptionist/backend`
    working tree.** It holds Cyrus's uncommitted work. Read it if you must; do not
-   edit, stash, reset, clean or commit it. All work happens in the worktree above.
+   edit, stash, reset, clean or commit it. All work happens in this repository.
+   It is reachable as the `local-desktop` remote if you need to compare, but treat
+   it as read-only.
 2. Do not weaken a test, an eval, an authentication boundary or a fail-closed
    guard to get something green. If a check is wrong, fix the check and say why.
 3. Nothing merges to `main` and nothing deploys to production without Cyrus
@@ -112,6 +114,21 @@ here has ever been checked against reality.
 Only with Cyrus present and agreeing, and only after Phase C succeeded. Follow
 `docs/GO_LIVE.md` Phase 2. The header-before-enforcement ordering in step 3 is
 not optional: reversing it breaks every live call.
+
+## Layout
+
+This repository is the home of the project now. Two things live elsewhere and are
+read-only from here:
+
+- `/Users/cyruslang/Desktop/amityville-ai-receptionist/backend` — the original
+  checkout with Cyrus's uncommitted work. Never modify it.
+- `/Users/cyruslang/.codex/.chatgpt-projects/g-p-.../voice-agent-pipeline` — the
+  agent pipeline controller (`./bin/aivance-pipeline`, the static and transcript
+  evaluators, the recorded run evidence). Invoke it from there with `--repo`
+  pointing at this directory when you want to re-score evals.
+
+`docs/handoff/` holds the written history: the security-baseline review, the
+infrastructure build report, and the prompt that started this phase.
 
 ## Notes that will save you time
 

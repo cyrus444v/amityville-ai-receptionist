@@ -1,0 +1,37 @@
+Du übernimmst den AIVANCE Voice-Agent Build. Arbeite ausschließlich in diesem Worktree:
+
+/Users/cyruslang/.codex/.chatgpt-projects/g-p-67fa5edc49648191975a25fb27df6ad7/voice-agent-pipeline/.worktrees/infra-20260818/claude-infra
+
+Branch: agent/claude-infra-20260818 (4 Commits auf dem gereviewten Kandidaten 5e4e0c0).
+
+Lies zuerst, in dieser Reihenfolge:
+  docs/CLAUDE_CODE_HANDOFF.md      <- dein Auftrag, 4 Phasen, Ground Rules
+  docs/TENANT_ARCHITECTURE.md      <- die Architekturentscheidung + 10 Refactor-Schritte
+  docs/GO_LIVE.md                  <- Runbook für Testanruf, Staging, Produktion
+
+Ziel: (1) Amityville Wellness live-fähig auf echten Servern, (2) das System so
+mandantenfähig, dass eine weitere Klinik in unter einer Stunde onboardbar ist.
+
+Starte mit Phase A (Tenant-Refactor). Die ist komplett offline verifizierbar und
+ändert die Task-Definition-Form, also vor der AWS-Arbeit erledigen.
+tenants/amityville-wellness.json ist als Referenzform schon angelegt.
+
+Harte Regeln:
+- /Users/cyruslang/Desktop/amityville-ai-receptionist/backend NIEMALS anfassen
+  (enthält meine uncommitteten Änderungen). Lesen ok, kein edit/stash/reset/commit.
+- Kein Test, Eval, Auth-Boundary oder Fail-Closed-Guard wird abgeschwächt, um grün
+  zu werden. Wenn ein Check falsch ist: Check korrigieren und begründen.
+- Kein Merge nach main, kein Produktions-Deploy ohne dass ich in dem Moment
+  explizit zustimme.
+- Der alte Google-Service-Account-Key ist kompromittiert. Nicht rekonstruieren,
+  nicht aus der Git-History lesen. Muss vor Produktionsverkehr rotiert werden.
+
+Nach jedem Schritt: npm run test:ci
+Am Ende jeder Phase zusätzlich: npm run harness, und npm run dev:local +
+npm run local:check gegen den laufenden Server.
+
+Wenn ein Build seltsam scheitert: env -u NODE_ENV davorsetzen. Auf dieser Maschine
+ist NODE_ENV=production in manchen Shells gesetzt, dann fehlt tsc.
+
+Fang an mit: kurze Bestandsaufnahme (git log, npm run test:ci), dann Phase A
+Schritt 1. Zeig mir vor größeren Umbauten kurz den Plan.
