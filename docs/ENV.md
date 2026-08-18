@@ -54,9 +54,9 @@ Write tools accept an optional `Idempotency-Key` header. Reusing a key with anot
 ## Production rollout order
 
 1. Generate distinct high-entropy values for `TOOL_AUTH_SECRET` and `APPOINTMENT_TOKEN_SECRET` outside the repository, and obtain the Retell webhook key for `RETELL_WEBHOOK_SECRET`. Do not paste any of them into an issue, command history, or tracked file.
-2. Create the DynamoDB coordination table with string partition key `pk`, enable TTL on `ttl`, and grant only the task role the documented item actions plus `Scan` for reconciliation. `aws-setup.sh` contains the operator-run commands, but this change does not run them.
+2. Deploy `infra/cloudformation/voice-agent-core.yml` per environment. It creates the coordination table (string partition key `pk`, TTL on `ttl`), the log group, the least-privilege task roles, the secret containers, and the OIDC deploy role. `aws-setup.sh` remains as the manual alternative; neither is run by this repository.
 3. Add `x-tool-auth`, dynamic `x-retell-caller-phone: {{user_number}}`, and dynamic `x-retell-call-id: {{call_id}}` headers to every Retell tool while the current backend still ignores them. Add and test the `find_appointment` tool flow. Cyrus must review and publish this external Retell change manually.
-4. Store all three secret values under the protected Secrets Manager references in `ecs-task-definition.json`. Configure `COORDINATION_TABLE` and `COORDINATION_REGION`; never place secret values in the task definition.
+4. Store the operator-supplied secret values in Secrets Manager under `ai-receptionist/<environment>/...`. The task definition is rendered from `infra/task-definition.template.json` plus `infra/environments/<environment>.json` and references secrets by ARN only — see [INFRASTRUCTURE.md](INFRASTRUCTURE.md). `COORDINATION_TABLE` and `COORDINATION_REGION` are rendered automatically; never place a secret value in the task definition.
 5. Append the `referral_source` header to column Q of the Appointments sheet. Existing rows may leave that trailing column empty.
 6. Configure `ALLOWED_ORIGINS` without `*`, proxy hops, and rate limits for the production topology. Browser origins are not needed for Retell server-to-server traffic.
 7. Create or verify the GitHub `production` environment and require Cyrus (or another designated reviewer) for deployments.

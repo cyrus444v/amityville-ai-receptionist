@@ -33,6 +33,9 @@ jobs:
       - name: Typecheck and test
         run: npm run test:ci
 
+      - name: Offline voice harness
+        run: npm run harness
+
       - name: Build
         run: npm run build
 

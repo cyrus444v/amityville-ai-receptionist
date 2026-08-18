@@ -1,20 +1,41 @@
 name: Deploy to AWS ECS
 
+# Deployment is always manual. Staging and production are separate jobs bound to
+# fixed GitHub environments, so a protected-environment reviewer requirement on
+# `production` cannot be bypassed by choosing a different input value.
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Which environment to deploy.
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      confirm_production:
+        description: Type DEPLOY PRODUCTION to allow the production job to run.
+        required: false
+        default: ''
+        type: string
 
 env:
-  AWS_REGION: us-east-1                          # change if using a different region
-  ECR_REPOSITORY: ai-receptionist-backend        # your ECR repo name
-  ECS_CLUSTER: ai-receptionist                   # your ECS cluster name
-  ECS_SERVICE: ai-receptionist-backend           # your ECS service name
-  CONTAINER_NAME: ai-receptionist-backend        # must match container name in ecs-task-definition.json
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ai-receptionist-backend
+  CONTAINER_NAME: ai-receptionist-backend
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.target }}
+  cancel-in-progress: false
 
 jobs:
   quality:
     name: Quality gate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -29,57 +50,115 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts
-      - name: Verify
+      - name: Typecheck, test and build
         run: npm run test:ci && npm run build
+      - name: Offline voice harness
+        run: npm run harness
+      - name: Reject high or critical production advisories
+        run: npm audit --omit=dev --audit-level=high
+      - name: Render the target task definition
+        run: node infra/render.mjs --env "${{ inputs.target }}" --image-tag "${{ github.sha }}" --out rendered-task-definition.json
+      - name: Upload rendered task definition
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-definition-${{ inputs.target }}
+          path: rendered-task-definition.json
+          retention-days: 7
 
-  deploy:
-    name: Build and deploy
+  deploy-staging:
+    name: Deploy staging
+    if: inputs.target == 'staging'
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Assume the staging deploy role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push the immutable image
+        id: image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Render the staging task definition
+        run: node infra/render.mjs --env staging --image-tag "${{ github.sha }}" --out rendered-task-definition.json
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: rendered-task-definition.json
+          service: ai-receptionist-backend
+          cluster: ai-receptionist-staging
+          wait-for-service-stability: true
+      - name: Read-only boundary smoke test
+        if: vars.SERVICE_BASE_URL != ''
+        run: node scripts/smoke.mjs "${{ vars.SERVICE_BASE_URL }}"
+
+  deploy-production:
+    name: Deploy production
+    if: inputs.target == 'production' && inputs.confirm_production == 'DEPLOY PRODUCTION'
     needs: quality
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 30
     permissions:
       contents: read
-
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: Configure AWS credentials
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Assume the production deploy role
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
       - name: Login to Amazon ECR
-        id: login-ecr
+        id: ecr
         uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image to ECR
-        id: build-image
+      - name: Build and push the immutable image
+        id: image
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-      - name: Update ECS task definition with new image
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ecs-task-definition.json
-          container-name: ${{ env.CONTAINER_NAME }}
-          image: ${{ steps.build-image.outputs.image }}
-
+          docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Render the production task definition
+        run: node infra/render.mjs --env production --image-tag "${{ github.sha }}" --out rendered-task-definition.json
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
+          task-definition: rendered-task-definition.json
+          service: ai-receptionist-backend
+          cluster: ai-receptionist-production
           wait-for-service-stability: true
+      - name: Read-only boundary smoke test
+        if: vars.SERVICE_BASE_URL != ''
+        run: node scripts/smoke.mjs "${{ vars.SERVICE_BASE_URL }}"

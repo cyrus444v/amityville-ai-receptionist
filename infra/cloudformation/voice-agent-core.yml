@@ -1,0 +1,337 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Amityville voice-agent core infrastructure. One stack per environment.
+  Creates the coordination table, log group, least-privilege ECS roles, secret
+  containers, and an optional GitHub OIDC deploy role. Intrinsic functions use
+  full form (Fn::Sub / Ref) so the template is parseable and testable offline.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    AllowedValues: [staging, production]
+    Description: Deployment environment. Controls naming, retention and deletion protection.
+  ServiceName:
+    Type: String
+    Default: ai-receptionist
+    AllowedPattern: '^[a-z][a-z0-9-]{2,40}$'
+    Description: Lowercase service slug used to name every resource.
+  GitHubRepository:
+    Type: String
+    Default: cyrus444v/amityville-ai-receptionist
+    AllowedPattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+    Description: owner/repo permitted to assume the deploy role via OIDC.
+  CreateGitHubOidcProvider:
+    Type: String
+    AllowedValues: ['yes', 'no']
+    Default: 'no'
+    Description: >
+      Set to yes only in the first stack in the account. GitHub's OIDC provider
+      is account-global; creating it twice fails.
+  CreateDeployRole:
+    Type: String
+    AllowedValues: ['yes', 'no']
+    Default: 'yes'
+    Description: Create the GitHub Actions deploy role for this environment.
+
+Mappings:
+  EnvironmentConfig:
+    staging:
+      LogRetentionDays: 30
+      DeletionProtection: false
+      PointInTimeRecovery: false
+    production:
+      LogRetentionDays: 365
+      DeletionProtection: true
+      PointInTimeRecovery: true
+
+Conditions:
+  IsProduction:
+    Fn::Equals: [{ Ref: EnvironmentName }, 'production']
+  ShouldCreateOidcProvider:
+    Fn::Equals: [{ Ref: CreateGitHubOidcProvider }, 'yes']
+  ShouldCreateDeployRole:
+    Fn::Equals: [{ Ref: CreateDeployRole }, 'yes']
+
+Resources:
+
+  # ------------------------------------------------------------------
+  # Shared coordination store: slot reservations, idempotency claims,
+  # mutation state and rate-limit counters. Keys are SHA-256 digests,
+  # so no patient identifier is ever persisted here.
+  # ------------------------------------------------------------------
+  CoordinationTable:
+    Type: AWS::DynamoDB::Table
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Properties:
+      TableName:
+        Fn::Sub: '${ServiceName}-${EnvironmentName}-coordination'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled:
+          Fn::FindInMap: [EnvironmentConfig, { Ref: EnvironmentName }, PointInTimeRecovery]
+      DeletionProtectionEnabled:
+        Fn::FindInMap: [EnvironmentConfig, { Ref: EnvironmentName }, DeletionProtection]
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Service
+          Value: { Ref: ServiceName }
+        - Key: Environment
+          Value: { Ref: EnvironmentName }
+        - Key: DataClass
+          Value: coordination-digests-only
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName:
+        Fn::Sub: '/ecs/${ServiceName}-${EnvironmentName}'
+      RetentionInDays:
+        Fn::FindInMap: [EnvironmentConfig, { Ref: EnvironmentName }, LogRetentionDays]
+
+  # ------------------------------------------------------------------
+  # Secret containers. Values are never set by this template except the
+  # two secrets CloudFormation can generate itself, which keeps them out
+  # of any human clipboard, shell history or agent transcript.
+  # ------------------------------------------------------------------
+  ToolAuthSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name:
+        Fn::Sub: '${ServiceName}/${EnvironmentName}/TOOL_AUTH_SECRET'
+      Description: Shared secret Retell must send in the tool auth header.
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
+        ExcludeCharacters: '"@/\'
+        RequireEachIncludedType: false
+
+  AppointmentTokenSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name:
+        Fn::Sub: '${ServiceName}/${EnvironmentName}/APPOINTMENT_TOKEN_SECRET'
+      Description: HMAC key for short-lived, caller-bound appointment selection tokens.
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
+        ExcludeCharacters: '"@/\'
+        RequireEachIncludedType: false
+
+  RetellWebhookSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name:
+        Fn::Sub: '${ServiceName}/${EnvironmentName}/RETELL_WEBHOOK_SECRET'
+      Description: >
+        Retell signing key used to verify X-Retell-Signature against the exact
+        raw request body. Operator-supplied; this stack never sets the value.
+
+  GoogleCredentialsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name:
+        Fn::Sub: '${ServiceName}/${EnvironmentName}/GOOGLE_CREDENTIALS_BASE64'
+      Description: >
+        Base64 service-account JSON. Operator-supplied. Rotate the previously
+        exposed key in Google Cloud before storing a value here.
+
+  ResendApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name:
+        Fn::Sub: '${ServiceName}/${EnvironmentName}/RESEND_API_KEY'
+      Description: Resend API key for confirmation email. Operator-supplied, optional.
+
+  # ------------------------------------------------------------------
+  # ECS roles. The execution role may read exactly these five secrets.
+  # The task role may touch exactly one DynamoDB table.
+  # ------------------------------------------------------------------
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: '${ServiceName}-${EnvironmentName}-task-execution'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: read-service-secrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - { Ref: ToolAuthSecret }
+                  - { Ref: AppointmentTokenSecret }
+                  - { Ref: RetellWebhookSecret }
+                  - { Ref: GoogleCredentialsSecret }
+                  - { Ref: ResendApiKeySecret }
+        - PolicyName: write-service-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: '${LogGroup.Arn}:*'
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: '${ServiceName}-${EnvironmentName}-task'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: coordination-table-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:TransactWriteItems
+                  - dynamodb:Scan
+                Resource:
+                  - { 'Fn::GetAtt': [CoordinationTable, Arn] }
+
+  # ------------------------------------------------------------------
+  # GitHub Actions deploy identity. Short-lived OIDC credentials replace
+  # long-lived AWS access keys. The trust policy is scoped to one repo
+  # and one GitHub environment, so a staging workflow cannot deploy
+  # production.
+  # ------------------------------------------------------------------
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Condition: ShouldCreateDeployRole
+    Properties:
+      RoleName:
+        Fn::Sub: '${ServiceName}-${EnvironmentName}-github-deploy'
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+                'token.actions.githubusercontent.com:sub':
+                  Fn::Sub: 'repo:${GitHubRepository}:environment:${EnvironmentName}'
+      Policies:
+        - PolicyName: push-image-and-roll-service
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:CompleteLayerUpload
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource:
+                  Fn::Sub: 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ServiceName}-backend'
+              - Effect: Allow
+                Action:
+                  - ecs:RegisterTaskDefinition
+                  - ecs:DescribeTaskDefinition
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecs:UpdateService
+                  - ecs:DescribeServices
+                Resource:
+                  Fn::Sub: 'arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ServiceName}-${EnvironmentName}/${ServiceName}-backend'
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - { 'Fn::GetAtt': [TaskExecutionRole, Arn] }
+                  - { 'Fn::GetAtt': [TaskRole, Arn] }
+                Condition:
+                  StringEquals:
+                    'iam:PassedToService': ecs-tasks.amazonaws.com
+
+Outputs:
+  CoordinationTableName:
+    Description: Value for COORDINATION_TABLE.
+    Value: { Ref: CoordinationTable }
+    Export:
+      Name:
+        Fn::Sub: '${AWS::StackName}-CoordinationTableName'
+  LogGroupName:
+    Description: Value for the awslogs-group log configuration option.
+    Value: { Ref: LogGroup }
+  TaskExecutionRoleArn:
+    Value: { 'Fn::GetAtt': [TaskExecutionRole, Arn] }
+  TaskRoleArn:
+    Value: { 'Fn::GetAtt': [TaskRole, Arn] }
+  DeployRoleArn:
+    Condition: ShouldCreateDeployRole
+    Description: Set as the AWS_DEPLOY_ROLE_ARN variable on the GitHub environment.
+    Value: { 'Fn::GetAtt': [DeployRole, Arn] }
+  ToolAuthSecretArn:
+    Value: { Ref: ToolAuthSecret }
+  AppointmentTokenSecretArn:
+    Value: { Ref: AppointmentTokenSecret }
+  RetellWebhookSecretArn:
+    Value: { Ref: RetellWebhookSecret }
+  GoogleCredentialsSecretArn:
+    Value: { Ref: GoogleCredentialsSecret }
+  ResendApiKeySecretArn:
+    Value: { Ref: ResendApiKeySecret }
+  ProductionGuard:
+    Condition: IsProduction
+    Description: Marker output confirming production retention and deletion protection are on.
+    Value: retention-365d-pitr-on-deletion-protected

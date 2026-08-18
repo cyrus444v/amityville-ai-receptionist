@@ -3,6 +3,10 @@
     "name": "get_current_date",
     "description": "Returns today's date, day of week, and current time in Eastern Time. Call this at the START of any booking, rescheduling, or availability check — before calculating relative dates like 'tomorrow', 'next Wednesday', or 'this Friday'. Never guess the date without calling this first.",
     "url": "https://api.amityvillewellness.com/current-date",
+    "headers": {
+      "x-tool-auth": "{{tool_auth_secret}}",
+      "x-retell-call-id": "{{call_id}}"
+    },
     "speak_during_execution": false,
     "execution_message_description": "No spoken message needed — this is a silent background call.",
     "parameters": {
@@ -15,6 +19,10 @@
     "name": "check_availability",
     "description": "Check if a specific date and time is available for an appointment. Always call this before offering or confirming any time slot. If no time is provided, returns all available slots for that day.",
     "url": "https://api.amityvillewellness.com/check-availability",
+    "headers": {
+      "x-tool-auth": "{{tool_auth_secret}}",
+      "x-retell-call-id": "{{call_id}}"
+    },
     "speak_during_execution": false,
     "execution_message_description": "Silent — no spoken message during availability check.",
     "parameters": {
@@ -37,13 +45,20 @@
           "description": "Appointment duration in minutes. Optional — defaults to the service's standard duration."
         }
       },
-      "required": ["date"]
+      "required": [
+        "date"
+      ]
     }
   },
   {
     "name": "find_appointment",
     "description": "Privately locate one confirmed appointment before rescheduling or cancellation. Retell must send the actual caller number in the configured x-retell-caller-phone dynamic header. If more than one appointment matches, ask for the original date and exact time and call again. Pass the returned appointment_id and appointment_token unchanged to the write tool; never speak the token.",
     "url": "https://api.amityvillewellness.com/find-appointment",
+    "headers": {
+      "x-tool-auth": "{{tool_auth_secret}}",
+      "x-retell-call-id": "{{call_id}}",
+      "x-retell-caller-phone": "{{user_number}}"
+    },
     "speak_during_execution": false,
     "execution_message_description": "Silent — appointment details are returned only after caller-number verification.",
     "parameters": {
@@ -66,13 +81,19 @@
           "description": "On the second lookup call, pass the private selection token returned by the first call. Never speak this value."
         }
       },
-      "required": ["phone"]
+      "required": [
+        "phone"
+      ]
     }
   },
   {
     "name": "create_appointment",
     "description": "Book an appointment after availability has been confirmed. Only call this after check_availability has returned available=true AND the caller has confirmed all details. Use full_name (not caller_name) for the patient name.",
     "url": "https://api.amityvillewellness.com/create-appointment",
+    "headers": {
+      "x-tool-auth": "{{tool_auth_secret}}",
+      "x-retell-call-id": "{{call_id}}"
+    },
     "speak_during_execution": false,
     "execution_message_description": "Silent — do not speak while this runs. Confirmation is spoken AFTER the tool returns.",
     "parameters": {
@@ -115,13 +136,24 @@
           "description": "Sport, injury, or accident context from Step 9. Any other relevant notes."
         }
       },
-      "required": ["full_name", "phone", "service", "date", "time"]
+      "required": [
+        "full_name",
+        "phone",
+        "service",
+        "date",
+        "time"
+      ]
     }
   },
   {
     "name": "reschedule_appointment",
     "description": "Reschedule the exact appointment selected by find_appointment. Always check availability for the new slot first. Pass appointment_id and appointment_token exactly as returned; never speak the token.",
     "url": "https://api.amityvillewellness.com/reschedule-appointment",
+    "headers": {
+      "x-tool-auth": "{{tool_auth_secret}}",
+      "x-retell-call-id": "{{call_id}}",
+      "x-retell-caller-phone": "{{user_number}}"
+    },
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Let me update that appointment for you...'",
     "parameters": {
@@ -148,13 +180,23 @@
           "description": "The new appointment start time in HH:MM 24-hour format."
         }
       },
-      "required": ["appointment_id", "appointment_token", "new_date", "new_time"]
+      "required": [
+        "appointment_id",
+        "appointment_token",
+        "new_date",
+        "new_time"
+      ]
     }
   },
   {
     "name": "cancel_appointment",
     "description": "Cancel the exact appointment selected by find_appointment. Pass appointment_id and appointment_token exactly as returned; never speak the token.",
     "url": "https://api.amityvillewellness.com/cancel-appointment",
+    "headers": {
+      "x-tool-auth": "{{tool_auth_secret}}",
+      "x-retell-call-id": "{{call_id}}",
+      "x-retell-caller-phone": "{{user_number}}"
+    },
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Let me take care of that cancellation for you...'",
     "parameters": {
@@ -173,13 +215,20 @@
           "description": "The private appointment selection token returned by find_appointment. Never speak this value."
         }
       },
-      "required": ["appointment_id", "appointment_token"]
+      "required": [
+        "appointment_id",
+        "appointment_token"
+      ]
     }
   },
   {
     "name": "create_callback",
     "description": "Save a callback request when a caller wants to be called back by the team. Use this when the caller can't get what they need right now, prefers to speak with a human, or explicitly asks for a callback.",
     "url": "https://api.amityvillewellness.com/create-callback",
+    "headers": {
+      "x-tool-auth": "{{tool_auth_secret}}",
+      "x-retell-call-id": "{{call_id}}"
+    },
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'I'll get that request in for you right now...'",
     "parameters": {
@@ -194,13 +243,20 @@
           "description": "The caller's phone number."
         }
       },
-      "required": ["caller_name", "phone"]
+      "required": [
+        "caller_name",
+        "phone"
+      ]
     }
   },
   {
     "name": "search_services",
     "description": "Search for services by name, category, or symptom. Use this when a caller asks what services are offered, asks about a specific treatment, or describes a symptom or condition.",
     "url": "https://api.amityvillewellness.com/search-services",
+    "headers": {
+      "x-tool-auth": "{{tool_auth_secret}}",
+      "x-retell-call-id": "{{call_id}}"
+    },
     "speak_during_execution": false,
     "execution_message_description": "No spoken message needed — response is fast.",
     "parameters": {
@@ -211,7 +267,9 @@
           "description": "The search query — can be a service name, symptom, category, or natural language phrase like 'what do you offer for skin' or 'something for stress'."
         }
       },
-      "required": ["query"]
+      "required": [
+        "query"
+      ]
     }
   }
 ]
