@@ -19,7 +19,9 @@
     "local:dynamo": "docker compose -f docker-compose.local.yml up -d",
     "local:dynamo:init": "node scripts/bootstrap-local-dynamo.mjs",
     "local:dynamo:down": "docker compose -f docker-compose.local.yml down",
-    "retell:tools": "node scripts/retell-tools-for.mjs"
+    "retell:tools": "node scripts/retell-tools-for.mjs",
+    "eval:static": "python3 evals/eval_runner.py --repo . --config evals/config.json --static",
+    "eval:transcripts": "python3 evals/eval_runner.py --repo . --config evals/config.json --transcripts harness/transcripts/voice-agent.jsonl"
   },
   "keywords": [],
   "author": "",

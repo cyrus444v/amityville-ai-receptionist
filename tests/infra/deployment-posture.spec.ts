@@ -114,8 +114,9 @@ describe('deploy workflow', () => {
     expect(deploy).not.toContain('ecs-task-definition.json');
   });
 
-  it('runs the offline voice harness in the quality gate', () => {
+  it('runs the offline voice harness and the evals in the quality gate', () => {
     expect(deploy).toContain('npm run harness');
+    expect(deploy).toContain('npm run eval:static');
   });
 
   it('keeps the smoke test read-only and credential-free', () => {
@@ -129,9 +130,11 @@ describe('deploy workflow', () => {
 });
 
 describe('ci workflow', () => {
-  it('keeps the quality gate and adds the harness', () => {
+  it('keeps the quality gate and adds the harness plus the evals', () => {
     expect(ci).toContain('npm run test:ci');
     expect(ci).toContain('npm run harness');
+    expect(ci).toContain('npm run eval:static');
+    expect(ci).toContain('npm run eval:transcripts');
     expect(ci).toContain('npm audit --omit=dev --audit-level=high');
     expect(ci).toContain('persist-credentials: false');
   });

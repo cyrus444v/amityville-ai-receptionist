@@ -123,9 +123,10 @@ read-only from here:
 - `/Users/cyruslang/Desktop/amityville-ai-receptionist/backend` — the original
   checkout with Cyrus's uncommitted work. Never modify it.
 - `/Users/cyruslang/.codex/.chatgpt-projects/g-p-.../voice-agent-pipeline` — the
-  agent pipeline controller (`./bin/aivance-pipeline`, the static and transcript
-  evaluators, the recorded run evidence). Invoke it from there with `--repo`
-  pointing at this directory when you want to re-score evals.
+  agent pipeline controller and its raw run logs. **Not a dependency:** the
+  evaluator now lives in this repository under `evals/`, so
+  `npm run eval:static` and `npm run eval:transcripts` work standalone and CI
+  enforces both.
 
 `docs/handoff/` holds the written history: the security-baseline review, the
 infrastructure build report, and the prompt that started this phase.
@@ -138,8 +139,7 @@ infrastructure build report, and the prompt that started this phase.
 - Retell's exact webhook signature scheme is unconfirmed and Cyrus has said it
   need not match theirs — treat the current HMAC-over-`rawBody + timestamp`
   implementation as ours. `npm run local:check` proves it is self-consistent.
-- The offline harness writes `harness/transcripts/voice-agent.jsonl`, which the
-  pipeline scores with
-  `./bin/aivance-pipeline eval --transcripts <path>`. Keep it at 48/48.
+- The offline harness writes `harness/transcripts/voice-agent.jsonl`, scored by
+  `npm run eval:transcripts`. Keep both evals at 48/48; CI fails otherwise.
 - Nothing on `b449511` or `9ea0814` has had independent review. If Codex quota is
   back, a read-only review of `a5e2cbf..HEAD` is worth one pass.

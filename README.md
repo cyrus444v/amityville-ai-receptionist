@@ -46,6 +46,7 @@ infra/        CloudFormation, per-environment config, the task-definition render
 tenants/      one file per clinic (business identity, hours, services)
 retell/       the agent's tool contract and system prompt
 scripts/      local check, post-deploy smoke test, Retell config generator
+evals/        the voice and security evaluator, scenarios and fixtures
 ```
 
 ## Commands
@@ -56,6 +57,8 @@ scripts/      local check, post-deploy smoke test, Retell config generator
 | `npm run local:check` | drive 20 flow and boundary checks against a running server |
 | `npm run test:ci` | typecheck (src, tests, harness, infra) + all tests |
 | `npm run harness` | the offline voice harness; writes scorable transcripts |
+| `npm run eval:static` | 48 prompt/tool/backend contract and security checks |
+| `npm run eval:transcripts` | scores the harness transcripts against the voice scenarios |
 | `npm run infra:render` | render a task definition for an environment |
 | `npm run retell:tools` | emit a tool config pointed at a tunnel or staging host |
 | `npm run smoke` | read-only post-deploy probe of a deployed host |
@@ -80,4 +83,6 @@ history is a separate decision.
 - `~/Desktop/amityville-ai-receptionist/backend` — the original checkout with
   uncommitted work. Read-only; available here as the `local-desktop` remote.
 - `~/.codex/.chatgpt-projects/g-p-*/voice-agent-pipeline` — the agent pipeline
-  controller and its recorded run evidence.
+  controller (multi-agent orchestration) and its raw run logs. The evaluator it
+  used now lives here in `evals/`, so nothing in this repository depends on that
+  folder. It is history, not a dependency.

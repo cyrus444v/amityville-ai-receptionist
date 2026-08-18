@@ -54,6 +54,9 @@ jobs:
         run: npm run test:ci && npm run build
       - name: Offline voice harness
         run: npm run harness
+
+      - name: Voice and security evals
+        run: npm run eval:static && npm run eval:transcripts
       - name: Reject high or critical production advisories
         run: npm audit --omit=dev --audit-level=high
       - name: Render the target task definition

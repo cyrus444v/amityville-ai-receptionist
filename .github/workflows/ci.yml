@@ -36,6 +36,9 @@ jobs:
       - name: Offline voice harness
         run: npm run harness
 
+      - name: Voice and security evals
+        run: npm run eval:static && npm run eval:transcripts
+
       - name: Build
         run: npm run build
 
