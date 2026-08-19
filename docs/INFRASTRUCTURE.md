@@ -54,6 +54,96 @@ through a terminal, a clipboard, a chat transcript, or an agent. The Google
 credential, the Retell signing key, and the Resend key are created empty because
 they come from outside AWS.
 
+## Current AWS reality
+
+Read-only discovery against account **668764275927**, region **us-east-1**, on
+19 August 2026, as `arn:aws:iam::668764275927:user/aivance-deploy`.
+
+**The headline: nothing is serving traffic, and nothing here is protecting a live
+caller.** The premise this project has been carrying — "something already serves
+`api.amityvillewellness.com`, so there is a cluster, a service, a load balancer
+and a certificate somewhere" — is false. There is no load balancer, and the
+hostname does not exist in DNS. That removes the cutover risk from going live: the
+first production deploy is a first deploy, not a replacement.
+
+### What exists
+
+| Resource | Value | Notes |
+|---|---|---|
+| ECS cluster | `ai-receptionist` | the **only** cluster; `-staging` / `-production` do not exist |
+| ECS service | `ai-receptionist-backend` | FARGATE, desired 1, running 1, steady since 22 Jul 2026 |
+| Task definition | `ai-receptionist-backend:17` | image tag `booking-fix-20260521143407` |
+| ECR repository | `ai-receptionist-backend` | **tag mutability: MUTABLE** |
+| Target group | `ai-receptionist-tg` | port 8080, target-type `ip`, health path `/`, **`LoadBalancerArns: []`** |
+| Load balancers | **none** | `describe-load-balancers` returns an empty list, not a permission error |
+| VPC | `vpc-013d30115da21e448` | the account's default VPC, `172.31.0.0/16` |
+| Subnets | `subnet-0af34467789fd745e` (us-east-1a), `subnet-07e1fa6100fc4d8c6` (us-east-1b) | both public, `MapPublicIpOnLaunch: true` |
+| Security group | `sg-0bba5f8de99ff08d7` | attached to the running task |
+| IAM roles in use | `ecsTaskExecutionRole`, `ecsTaskRole` | generic names, not the `<svc>-<env>-*` roles the template creates |
+| Log group | `/ecs/ai-receptionist-backend` | not the `/ecs/<svc>-<env>` the template creates |
+| Secrets in use | `ai-receptionist/GOOGLE_CREDENTIALS_BASE64`, `ai-receptionist/RESEND_API_KEY` | by reference, no plaintext in the task definition |
+| DNS | `amityvillewellness.com` → GoDaddy (`ns37/ns38.domaincontrol.com`), apex and `www` → `46.224.24.118` | **not Route53**; there is no `api` record at all |
+
+### What that means
+
+1. **The running service is orphaned.** Its target group has no load balancer, so
+   nothing routes to it, and `api.amityvillewellness.com` is NXDOMAIN. The task is
+   running and costing money while being unreachable.
+
+2. **The running service is pre-security-baseline.** Its task definition declares
+   13 environment variables and 2 secrets. Absent: `TOOL_AUTH_SECRET`,
+   `APPOINTMENT_TOKEN_SECRET`, `RETELL_WEBHOOK_SECRET`, `COORDINATION_TABLE`,
+   `ALLOWED_ORIGINS`, `RATE_LIMIT_*`, `TRUST_PROXY_HOPS`, `TENANT_CONFIG_JSON` —
+   that is, every control the current code depends on, and the tenant
+   configuration the current code refuses to boot without. It cannot be updated in
+   place to the current image; it needs the new task definition.
+
+3. **The deploy workflow points at clusters that do not exist.**
+   `.github/workflows/deploy.yml` names `ai-receptionist-staging` and
+   `ai-receptionist-production`. Neither is there. This is Phase B item 2 and it
+   is now a decision, not an unknown — see below.
+
+4. **DNS is at GoDaddy, so Route53 is not in the path.** The `api` record will be
+   a CNAME created at GoDaddy pointing at the ALB's DNS name, and the ACM
+   certificate will have to be DNS-validated by adding a CNAME there too.
+   `shared-alb.yml` creates no Route53 records; it only outputs the ALB DNS name
+   and canonical hosted-zone ID, which stay useful if the domain ever moves.
+
+5. **The default VPC's two public subnets are usable as they are.** They span
+   us-east-1a and us-east-1b, which satisfies the ALB's two-AZ requirement, and
+   they let the Fargate task keep `AssignPublicIp: ENABLED` so no NAT gateway is
+   needed. Concretely: `VpcId=vpc-013d30115da21e448`,
+   `PublicSubnetIds=subnet-0af34467789fd745e,subnet-07e1fa6100fc4d8c6`,
+   `TaskSubnetIds=` the same two.
+
+### What the discovery could not see
+
+The `aivance-deploy` key is a **deploy-time** identity — ECR push and ECS update —
+not an infrastructure-provisioning one. It was denied:
+
+| Action | Consequence |
+|---|---|
+| `acm:ListCertificates` | cannot confirm whether a certificate for `api.amityvillewellness.com` exists. One is required before the ALB can serve HTTPS. |
+| `route53:ListHostedZones` | moot — DNS is at GoDaddy |
+| `dynamodb:ListTables` | cannot confirm whether any `*-coordination` table already exists |
+| `secretsmanager:ListSecrets` | cannot enumerate secrets; two are known from the task definition |
+
+Deploying either CloudFormation stack needs far more than this key has —
+`iam:CreateRole`, `elasticloadbalancing:*`, `dynamodb:CreateTable`,
+`secretsmanager:CreateSecret`, `ecs:CreateService`. **Phase B steps 3 and 4 cannot
+run with this credential.**
+
+### Cleanup this discovery identified
+
+Not urgent, but all of it is waste or a hazard:
+
+- the orphaned `ai-receptionist-tg` target group;
+- the unreachable `ai-receptionist-backend` service and its running task;
+- ECR tag mutability is `MUTABLE`, so a tag can be overwritten to point at
+  different code. The renderer already refuses mutable tag *names* like `latest`,
+  but setting the repository to `IMMUTABLE` closes the same hole at the registry;
+- the `ai-receptionist/<NAME>` secrets, once the `<svc>/<env>/<NAME>` set exists.
+
 ## Container configuration
 
 `ecs-task-definition.json` is gone. It hardcoded production account IDs, the live

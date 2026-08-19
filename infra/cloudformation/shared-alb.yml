@@ -132,13 +132,18 @@ Outputs:
       Name:
         Fn::Sub: 'voice-agent-${EnvironmentName}-LoadBalancerArn'
   LoadBalancerDnsName:
-    Description: Point each clinic's api.<clinic> record at this name.
+    Description: >
+      Point each clinic's api.<clinic> record at this name. For clinic #1 that is a
+      CNAME created at GoDaddy, not a Route53 alias — see the "Current AWS reality"
+      section of docs/INFRASTRUCTURE.md.
     Value: { 'Fn::GetAtt': [LoadBalancer, DNSName] }
     Export:
       Name:
         Fn::Sub: 'voice-agent-${EnvironmentName}-LoadBalancerDnsName'
   LoadBalancerHostedZoneId:
-    Description: For the Route53 alias record of each clinic's hostname.
+    Description: >
+      For a Route53 alias record, if a clinic's domain is hosted there. Clinic #1's
+      is not; this stack creates no DNS records either way.
     Value: { 'Fn::GetAtt': [LoadBalancer, CanonicalHostedZoneID] }
     Export:
       Name:
