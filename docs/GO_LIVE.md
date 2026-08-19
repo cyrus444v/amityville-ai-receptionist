@@ -138,6 +138,23 @@ involved. Only then continue.
 
 ---
 
+## Before Phase 1 — what the AWS discovery changed
+
+Read the "Current AWS reality" section of [INFRASTRUCTURE.md](INFRASTRUCTURE.md)
+first. The short version, because it changes this runbook's assumptions:
+
+- **Nothing is live.** No load balancer exists, `api.amityvillewellness.com` does
+  not resolve, and the one running ECS service is orphaned behind a target group
+  with no load balancer. This is a first launch, not a cutover — there is no
+  rollback target and nothing to keep alive.
+- **The hostname has to be created.** It is a CNAME at **GoDaddy**, not Route53,
+  pointing at the shared ALB's DNS name. The ACM certificate is DNS-validated with
+  a CNAME added there too. Both are manual steps outside AWS.
+- **Two new clusters** get created: `ai-receptionist-staging` and
+  `ai-receptionist-production`.
+- **The deploy key needs temporary provisioning rights** — see
+  `infra/iam/README.md` — and both need to be removed when Phase B is done.
+
 ## Phase 1 — staging on AWS
 
 1. **Rotate the exposed Google service-account key** in Google Cloud first.

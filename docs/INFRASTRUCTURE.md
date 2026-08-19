@@ -133,6 +133,29 @@ Deploying either CloudFormation stack needs far more than this key has —
 `secretsmanager:CreateSecret`, `ecs:CreateService`. **Phase B steps 3 and 4 cannot
 run with this credential.**
 
+### Decisions taken on these findings (19 August 2026)
+
+1. **Two new clusters**, `ai-receptionist-staging` and `ai-receptionist-production`.
+   ECS clusters cost nothing, `deploy.yml` and `tenant-service.yml` already name
+   them, and mixing both environments into one cluster would weaken exactly the
+   separation the rest of this architecture is built on. Because nothing is live
+   there is no migration: the stale `ai-receptionist` cluster, its unreachable
+   service and the orphaned target group get deleted afterwards. **No code change
+   was needed** — the workflow already pointed at these names, and the stack
+   creates the service as `${ServiceName}-backend`, which matches.
+
+2. **The clinic has no working phone agent right now.** So this is a first launch,
+   not a cutover. Nothing to keep alive, no callers to drop, no rollback target.
+   `retell/tools.json` points at `api.amityvillewellness.com`, which does not
+   resolve, so any Retell agent still configured from it is non-functional; the
+   hostname has to be created before a test call can work at all.
+
+3. **The `aivance-deploy` key gets temporary provisioning rights** rather than a
+   second IAM user. The exact policy, why each statement exists, and the commands to
+   attach and later detach it are in `infra/iam/README.md`. It is elevation of a
+   long-lived key that has been exposed in an agent transcript, so detaching it and
+   rotating the key are part of finishing Phase B, not optional follow-ups.
+
 ### Cleanup this discovery identified
 
 Not urgent, but all of it is waste or a hazard:
