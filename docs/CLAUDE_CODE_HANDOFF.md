@@ -7,13 +7,14 @@ your job is to execute it and to correct it where reality disagrees.
 ## Where you are
 
 - Repository: `/Users/cyruslang/aivance-voice-agent` (standalone clone, `origin` is GitHub)
-- Branch `agent/claude-infra-20260818`, three commits on the reviewed candidate:
+- Branch `agent/claude-infra-20260818`, on the reviewed candidate:
   - `5e4e0c0` hardened security baseline (65 tests, reviewed evidence)
   - `b449511` declarative infrastructure, Retell header fix, offline harness
   - `9ea0814` locally runnable agent, live-server checker, go-live runbook
-- Green right now: `npm run build`, `npm run test:ci` (118 tests),
-  `npm run harness`, `npm run local:check` (20/20 against a live server),
-  pipeline static eval 48/48, transcript eval 48/48.
+  - then documentation, the in-repo evaluator, and Phase A (the tenant refactor)
+- Green right now: `npm run build`, `npm run test:ci` (232 tests),
+  `npm run harness`, `npm run local:check` (22/22 against a live server, for each
+  of two clinics), static eval 48/48, transcript eval 48/48.
 
 ## Ground rules
 
@@ -32,9 +33,46 @@ your job is to execute it and to correct it where reality disagrees.
 5. Patient data is PHI. No real patient record leaves the clinic's own Google
    resources, and none appears in a log, a test fixture, or a commit.
 
-## Phase A — make it multi-tenant (local, offline, no credentials needed)
+## Phase A — make it multi-tenant — DONE
 
-Do this first. It is entirely local and fully verifiable, and it changes the task
+Completed 19 August 2026. All ten refactor steps in
+`docs/TENANT_ARCHITECTURE.md` are implemented, four of them differently from the
+plan; see "Where this plan was wrong" in that file for what changed and why.
+
+Verified at the end of the phase:
+
+| | |
+|---|---|
+| `npm run build` | clean |
+| `npm run test:ci` | 232 tests (was 118), typecheck of src + tests + harness + infra + lib |
+| `npm run harness` | 19 |
+| `npm run eval:static` | 48/48 |
+| `npm run eval:transcripts` | 48/48 |
+| `npm run local:check` | 22/22 against a live server — **for each of two clinics** |
+
+The exit condition held: a second clinic configured only by a tenant file boots
+the app, serves the whole tool flow, and reports its own hours, services, timezone
+and email footer; and no `Amityville`, `amityvillewellness`, `631-691`, `Broadway`
+or `Hurme` survives anywhere under `src/` — enforced by
+`tests/unit/tenant-neutrality.spec.ts` rather than by inspection.
+
+Things a reader of the original plan should know changed:
+
+- There is **no tenant default anywhere**, in any environment. Every entry point
+  names the clinic it serves. A process that cannot resolve one refuses to start.
+- Environment files are now `infra/environments/<slug>.<environment>.json`, and
+  every render command takes `--tenant <slug>`. The deploy workflow gained a
+  `tenant` input, passed to the renderer through the step environment rather than
+  interpolated into the shell command.
+- `infra/cloudformation/voice-agent-core.yml` is now `tenant-service.yml`, plus a
+  new `shared-alb.yml`. The compute and networking Phase B item 3 asks for are
+  written but still unvalidated against AWS.
+- `js-yaml` was added as a devDependency so `test:ci` parses both CloudFormation
+  templates and resolves every reference. Nothing had ever parsed them.
+
+### The original Phase A brief, for reference
+
+It is entirely local and fully verifiable, and it changes the task
 definition shape — so doing it before the AWS work avoids deploying twice.
 
 Follow the ten refactor steps in `docs/TENANT_ARCHITECTURE.md`.
@@ -84,11 +122,14 @@ here has ever been checked against reality.
    `ai-receptionist`. Either adopt the existing names or plan the rename
    explicitly — do not leave the workflow pointing at something that does not
    exist.
-3. **Complete the IaC.** `infra/cloudformation/voice-agent-core.yml` creates the
-   supporting infrastructure but *not the compute or networking*: no cluster, no
-   service, no target group, no listener rule. Split it as described in
-   `docs/TENANT_ARCHITECTURE.md` into `shared-alb.yml` and `tenant-service.yml`,
-   and import the resources that already exist rather than creating duplicates.
+3. **Complete the IaC.** *Phase A did the split:* `shared-alb.yml` and
+   `tenant-service.yml` now exist, and the compute and networking that were missing
+   — cluster, service, target group, listener rule, listener certificate, task
+   security group — are written. What remains is the part that needs the account:
+   fill in `VpcId`, `TaskSubnetIds`, `PublicSubnetIds`, `CertificateArn`,
+   `ClusterName` and `ListenerRulePriority` from what is really there, and **import
+   the resources that already exist rather than creating duplicates** — that is why
+   `CreateCluster` defaults to `no`.
 4. Validate before applying anything:
    ```bash
    aws cloudformation validate-template --template-body file://infra/cloudformation/tenant-service.yml
@@ -99,8 +140,8 @@ here has ever been checked against reality.
 ## Phase C — staging, then a real test call
 
 1. Cyrus rotates the Google key. Do not proceed on the old one.
-2. Cyrus creates a staging Google calendar and spreadsheet; put their IDs in the
-   staging environment file. The renderer refuses to build staging while the
+2. Cyrus creates a staging Google calendar and spreadsheet; put their IDs in
+   `infra/environments/amityville-wellness.staging.json`. The renderer refuses to build staging while the
    `REPLACE_WITH_*` sentinels remain, and refuses to point staging at the
    production calendar or spreadsheet.
 3. Deploy the staging stack, then the staging service.

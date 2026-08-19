@@ -25,9 +25,19 @@ if (process.env.NODE_ENV === 'production') {
   throw new Error('The local server must never run with NODE_ENV=production.');
 }
 
-const TZ = process.env.TIMEZONE ?? 'America/New_York';
 const PORT = Number(process.env.PORT ?? 3001);
 const DEMO_CALLER = process.env.DEMO_CALLER_PHONE ?? '+16315550123';
+
+/**
+ * Which clinic this local process serves. There is no application-level default
+ * — every entry point names its clinic — so the local server names clinic #1 and
+ * says so in the banner. Serve another clinic with:
+ *
+ *   TENANT_SLUG=riverside-physio npm run dev:local
+ */
+if (!process.env.TENANT_SLUG && !process.env.TENANT_CONFIG_JSON && !process.env.TENANT_CONFIG_PATH) {
+  process.env.TENANT_SLUG = 'amityville-wellness';
+}
 
 /** Ephemeral per-boot secrets. Never reuse these anywhere real. */
 function ephemeral(name: string): string {
@@ -39,41 +49,70 @@ process.env.NODE_ENV ??= 'development';
 const toolSecret = ephemeral('TOOL_AUTH_SECRET');
 ephemeral('APPOINTMENT_TOKEN_SECRET');
 const webhookSecret = ephemeral('RETELL_WEBHOOK_SECRET');
-process.env.TIMEZONE ??= TZ;
 process.env.RATE_LIMIT_MAX ??= '240';
 
-function nextOpenDay(offsetDays = 1): string {
-  const openWeekdays = new Set([2, 3, 5, 6]); // Tue, Wed, Fri, Sat
-  let cursor = dayjs().tz(TZ).add(offsetDays, 'day').startOf('day');
-  while (!openWeekdays.has(cursor.day())) cursor = cursor.add(1, 'day');
-  return cursor.format('YYYY-MM-DD');
+/** dayjs day-of-week index for each tenant day key. */
+const WEEKDAY_INDEX: Record<string, number> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+};
+
+function toMinutes(time: string): number {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
 }
 
 async function main(): Promise<void> {
   const { sheetsFake, calendarFake, mailerFake, resetFakes } = await import('./fake-google');
+  const { tenant, DAY_KEYS } = await import('../src/config/tenant');
   const { resetMemoryCoordinationForTests } = await import('../src/services/coordination');
   const { createApp } = await import('../src/index');
 
+  const TZ = tenant.timezone;
+  const openWeekdays = new Set(
+    DAY_KEYS.filter((day) => !tenant.business_hours[day].closed).map((day) => WEEKDAY_INDEX[day]),
+  );
+
+  /** The clinic's next open day, whichever days those are. */
+  function nextOpenDay(offsetDays = 1): string {
+    let cursor = dayjs().tz(TZ).add(offsetDays, 'day').startOf('day');
+    while (!openWeekdays.has(cursor.day())) cursor = cursor.add(1, 'day');
+    return cursor.format('YYYY-MM-DD');
+  }
+
   const demoDate = nextOpenDay(1);
+  const demoDayKey = DAY_KEYS.find((day) => WEEKDAY_INDEX[day] === dayjs.tz(demoDate, TZ).day())!;
+  const demoHours = tenant.business_hours[demoDayKey];
+  const demoService = tenant.services[0];
+  const demoDuration = demoService.duration_minutes ?? tenant.default_appointment_duration_minutes;
+
+  /** Every whole hour the clinic is open on the demo day, in HH:MM. */
+  const bookableHours: string[] = [];
+  for (let minute = toMinutes(demoHours.open); minute + 60 <= toMinutes(demoHours.close); minute += 60) {
+    bookableHours.push(`${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`);
+  }
+
+  // Seed the demo two hours in, when the day is long enough, so a checker still
+  // has free slots before and after it.
+  const demoTime = bookableHours[Math.min(2, bookableHours.length - 1)] ?? demoHours.open;
 
   /** (Re)creates the demo appointment plus its backing calendar event. */
   async function seedDemo(): Promise<string> {
     const eventId = await calendarFake.createCalendarEvent({
-      summary: 'Demo — Acupuncture',
+      summary: `Demo — ${demoService.name}`,
       description: 'Seeded by the local server',
       date: demoDate,
-      startTime: '11:00',
-      durationMinutes: 60,
+      startTime: demoTime,
+      durationMinutes: demoDuration,
       tz: TZ,
     });
     return sheetsFake.seedAppointment({
       id: 'demo-appt-1',
       caller_name: 'Demo Patient',
       phone: DEMO_CALLER,
-      service_name: 'Acupuncture',
+      service_name: demoService.name,
       appointment_date: demoDate,
-      appointment_time: '11:00',
-      duration_minutes: '60',
+      appointment_time: demoTime,
+      duration_minutes: String(demoDuration),
       timezone: TZ,
       status: 'confirmed',
       google_event_id: eventId,
@@ -113,7 +152,9 @@ async function main(): Promise<void> {
       demo_appointment_id: seeded,
       demo_caller_phone: DEMO_CALLER,
       demo_date: demoDate,
-      demo_time: '11:00',
+      demo_time: demoTime,
+      demo_service: demoService.name,
+      bookable_hours: bookableHours,
     });
   });
 
@@ -126,6 +167,8 @@ async function main(): Promise<void> {
     console.log('  AIVANCE voice agent — LOCAL MODE');
     console.log('  Calendar, spreadsheet and email are in-memory. Nothing real is touched.');
     console.log(line);
+    console.log(`  Serving              ${tenant.display_name}  [${tenant.slug}]`);
+    console.log(`  Timezone             ${TZ}`);
     console.log(`  URL                  http://localhost:${PORT}`);
     console.log(`  Public health check  http://localhost:${PORT}/health`);
     console.log(`  Reset state          curl -X POST http://localhost:${PORT}/__local/reset`);
@@ -141,9 +184,12 @@ async function main(): Promise<void> {
     console.log('  Seeded demo data for reschedule/cancel flows:');
     console.log(`    appointment_id   ${demoId}`);
     console.log(`    caller number    ${DEMO_CALLER}   <- call from this number, or override`);
-    console.log(`    when             ${demoDate} at 11:00 (Acupuncture)`);
+    console.log(`    when             ${demoDate} at ${demoTime} (${demoService.name})`);
     console.log('');
-    console.log('  Bookable same day: 09:00, 10:00, 13:00, 14:00, 15:00, 16:00');
+    console.log(`  ${demoDayKey.charAt(0).toUpperCase() + demoDayKey.slice(1)} hours: ${demoHours.open}-${demoHours.close}`);
+    console.log(`  Bookable same day: ${bookableHours.filter((hour) => hour !== demoTime).join(', ')}`);
+    console.log('');
+    console.log(`  npm run local:check -- --secret ${toolSecret} --webhook-secret ${webhookSecret}`);
     console.log(`${line}\n`);
     /* eslint-enable no-console */
   });

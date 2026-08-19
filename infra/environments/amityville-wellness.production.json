@@ -1,0 +1,43 @@
+{
+  "environment": "production",
+  "tenant": "amityville-wellness",
+  "description": "Live clinic environment. Real callers, real calendar, real patient records.",
+  "readonlyRootFilesystem": false,
+  "values": {
+    "SERVICE": "ai-receptionist",
+    "ENVIRONMENT": "production",
+    "NODE_ENV": "production",
+    "AWS_ACCOUNT_ID": "668764275927",
+    "AWS_REGION": "us-east-1",
+    "TASK_CPU": "512",
+    "TASK_MEMORY": "1024",
+
+    "BUSINESS_NAME": "Amityville Acupuncture, Microneedling & Wellness",
+    "BUSINESS_PHONE": "+1 631-691-0200",
+    "BUSINESS_ADDRESS": "209 Broadway, Amityville, NY 11701",
+    "BUSINESS_WEBSITE": "https://www.amityvillewellness.com",
+    "TIMEZONE": "America/New_York",
+    "DEFAULT_APPOINTMENT_DURATION": "60",
+
+    "GOOGLE_CALENDAR_ID": "cyrus.lang1@gmail.com",
+    "GOOGLE_SPREADSHEET_ID": "1Nn7nMjzC0SkqP2PcjE69i_J-tmGiDUsXyCIpSjCDTjs",
+    "GOOGLE_IMPERSONATE_EMAIL": "",
+
+    "EMAIL_FROM": "onboarding@resend.dev",
+    "EMAIL_REPLY_TO": "cyrus.lang@ai-vance.de",
+
+    "TOOL_AUTH_HEADER": "x-tool-auth",
+    "TOOL_AUTH_VERSION": "v1",
+    "APPOINTMENT_TOKEN_TTL_MS": "600000",
+    "RETELL_CALLER_PHONE_HEADER": "x-retell-caller-phone",
+    "RETELL_CALL_ID_HEADER": "x-retell-call-id",
+    "RETELL_WEBHOOK_TOLERANCE_MS": "300000",
+
+    "ALLOWED_ORIGINS": "",
+    "REQUEST_BODY_LIMIT": "32kb",
+    "RATE_LIMIT_WINDOW_MS": "60000",
+    "RATE_LIMIT_MAX": "60",
+    "IDEMPOTENCY_TTL_MS": "900000",
+    "TRUST_PROXY_HOPS": "1"
+  }
+}

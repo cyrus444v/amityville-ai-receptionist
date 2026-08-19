@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { config } from '../config';
 import { logger } from '../utils/logger';
 
 let _resend: Resend | null = null;
@@ -43,23 +44,34 @@ export function escapeHtml(value: string): string {
   })[character]!);
 }
 
-export async function sendBookingConfirmation(params: ConfirmationEmailParams): Promise<void> {
-  const resend = getResend();
+export interface RenderedEmail {
+  from: string;
+  replyTo: string;
+  subject: string;
+  html: string;
+}
 
-  const fromName = process.env.BUSINESS_NAME || 'Amityville Acupuncture';
-  const fromEmail = process.env.EMAIL_FROM || 'appointments@amityvilleacupuncture.com';
-  const replyTo = process.env.EMAIL_REPLY_TO || fromEmail;
+/**
+ * Pure so the clinic-specific parts of a confirmation — sender name, sender
+ * address, reply-to and the footer locality — can be asserted per tenant
+ * without sending anything.
+ */
+export function renderConfirmationEmail(params: ConfirmationEmailParams): RenderedEmail {
+  const fromName = config.email.fromName;
+  const fromEmail = config.email.from;
+  const replyTo = config.email.replyTo;
+  const footerLocality = config.email.footerLocality;
 
   const formattedDate = formatDate(params.date);
   const formattedTime = formatTime(params.time);
   const safeFromName = escapeHtml(fromName);
+  const safeFooterLocality = escapeHtml(footerLocality);
   const safeCallerName = escapeHtml(params.caller_name);
   const safeService = escapeHtml(params.service);
 
-  const { error } = await resend.emails.send({
+  return {
     from: `${fromName} <${fromEmail}>`,
-    to: params.to,
-    replyTo: replyTo,
+    replyTo,
     subject: `Your appointment is confirmed — ${params.service} on ${formattedDate}`,
     html: `
 <!DOCTYPE html>
@@ -127,7 +139,7 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
           <!-- Footer -->
           <tr>
             <td style="background:#fafafa;border-top:1px solid #eee;padding:20px 40px;text-align:center;">
-              <p style="margin:0;color:#aaa;font-size:12px;">${safeFromName} · Amityville, NY</p>
+              <p style="margin:0;color:#aaa;font-size:12px;">${safeFromName} · ${safeFooterLocality}</p>
             </td>
           </tr>
 
@@ -138,6 +150,19 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
 </body>
 </html>
     `.trim(),
+  };
+}
+
+export async function sendBookingConfirmation(params: ConfirmationEmailParams): Promise<void> {
+  const resend = getResend();
+  const { from, replyTo, subject, html } = renderConfirmationEmail(params);
+
+  const { error } = await resend.emails.send({
+    from,
+    to: params.to,
+    replyTo,
+    subject,
+    html,
   });
 
   if (error) {

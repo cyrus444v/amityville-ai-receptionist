@@ -6,6 +6,11 @@ name: Deploy to AWS ECS
 on:
   workflow_dispatch:
     inputs:
+      tenant:
+        description: Which clinic to deploy. Must match a tenants/<slug>.json and an infra/environments/<slug>.<env>.json.
+        required: true
+        default: amityville-wellness
+        type: string
       target:
         description: Which environment to deploy.
         required: true
@@ -28,7 +33,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ inputs.target }}
+  group: deploy-${{ inputs.tenant }}-${{ inputs.target }}
   cancel-in-progress: false
 
 jobs:
@@ -60,11 +65,14 @@ jobs:
       - name: Reject high or critical production advisories
         run: npm audit --omit=dev --audit-level=high
       - name: Render the target task definition
-        run: node infra/render.mjs --env "${{ inputs.target }}" --image-tag "${{ github.sha }}" --out rendered-task-definition.json
+        env:
+          TENANT: ${{ inputs.tenant }}
+          TARGET: ${{ inputs.target }}
+        run: node infra/render.mjs --tenant "$TENANT" --env "$TARGET" --image-tag "${{ github.sha }}" --out rendered-task-definition.json
       - name: Upload rendered task definition
         uses: actions/upload-artifact@v4
         with:
-          name: task-definition-${{ inputs.target }}
+          name: task-definition-${{ inputs.tenant }}-${{ inputs.target }}
           path: rendered-task-definition.json
           retention-days: 7
 
@@ -105,7 +113,9 @@ jobs:
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           echo "uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
       - name: Render the staging task definition
-        run: node infra/render.mjs --env staging --image-tag "${{ github.sha }}" --out rendered-task-definition.json
+        env:
+          TENANT: ${{ inputs.tenant }}
+        run: node infra/render.mjs --tenant "$TENANT" --env staging --image-tag "${{ github.sha }}" --out rendered-task-definition.json
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
@@ -154,7 +164,9 @@ jobs:
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           echo "uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
       - name: Render the production task definition
-        run: node infra/render.mjs --env production --image-tag "${{ github.sha }}" --out rendered-task-definition.json
+        env:
+          TENANT: ${{ inputs.tenant }}
+        run: node infra/render.mjs --tenant "$TENANT" --env production --image-tag "${{ github.sha }}" --out rendered-task-definition.json
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:

@@ -56,6 +56,98 @@
     "production_host": "api.amityvillewellness.com",
     "staging_host": "REPLACE_WITH_STAGING_HOST"
   },
+  "prompt": {
+    "spoken_name": "Amityville Acupuncture & Wellness",
+    "locality_long": "Amityville, New York",
+    "timezone_label": "Eastern Time",
+    "provider_short": "Dr. Hurme",
+    "practice_summary": "{{clinic_name}} is an established, high-level wellness and recovery clinic serving Long Island since 2008. The practice specializes in acupuncture, sports recovery, pain management, microneedling, red light therapy, massage, oncology support, and holistic wellness.",
+    "identity_lines": [
+      "Address: 209 Broadway, Amityville, NY 11701 (entrance in back, next to parking lot)",
+      "Phone: 631.691.0200 | Text: 631.532.8548",
+      "Website: www.amityvillewellness.com",
+      "Provider: Dr. E. Hurme, DAOM (Doctor of Acupuncture & Oriental Medicine)"
+    ],
+    "service_catalogue": [
+      "- Acupuncture (60 min) — pain relief, sports recovery, stress, migraines, oncology support",
+      "- Sports Recovery Acupuncture — athletes, injury prevention, performance",
+      "- Pediatric Acupuncture — gentle, customized for age and sport",
+      "- Motor Vehicle Accident (No Fault) Treatment",
+      "- Workers' Compensation Treatment",
+      "- Massage Therapy (60 min) — muscle tension, relaxation",
+      "- Chinese Herbal Medicine (30 min) — personalized consultations",
+      "- Microneedling (60 min) — acne scars, fine lines, skin texture, hair loss",
+      "- Nanoneedling (45 min) — gentle skin rejuvenation, no downtime",
+      "- Cosmetic Acupuncture (75 min) — anti-aging, skin firmness",
+      "- Red Light Therapy (20 min) — inflammation, healing, collagen, athletic recovery",
+      "- Cancer Care Acupuncture (60 min) — FREE for cancer patients",
+      "- Community Acupuncture / Wellness Acupuncture"
+    ],
+    "patient_priority": [
+      "HIGH PRIORITY (schedule immediately):",
+      "1. No Fault / Motor Vehicle Accident patients",
+      "2. Workers' Compensation patients",
+      "3. Acute pain patients",
+      "4. Athletes with upcoming events",
+      "5. Pediatric athletes",
+      "6. Chronic pain / severe flare-ups",
+      "",
+      "SECONDARY:",
+      "7. Wellness/cash patients",
+      "8. Stress/anxiety/sleep patients",
+      "9. Microneedling/cosmetic leads"
+    ],
+    "new_patient_policy": "Just so you know, we do have a 24-hour cancellation policy. To hold your appointment, we'll need a credit card on file — someone from our office will give you a quick call to take care of that. If you need to reschedule or cancel, please give us at least 24 hours notice to avoid a $40 fee. Also, since this is your first visit, we'll need a copy of your photo ID and insurance card on file before your appointment. You can text them to us at 631.532.8548, or bring them with you and we'll take care of it when you arrive.",
+    "insurance_positioning": [
+      "NEVER guarantee insurance coverage. NEVER simply say \"no\" if asked whether you accept a specific insurance.",
+      "NEVER end the insurance conversation with the patient still uncertain — always give them a next step.",
+      "",
+      "If a caller asks whether you accept their insurance:",
+      "→ \"We try to work with your insurance company. If we are not in-network with them, please call your insurance company and ask if you have acupuncture benefits with an out-of-network provider. We also help review your benefits, though verification may not always be completed before your appointment.\"",
+      "",
+      "If a caller has no coverage or their insurance does not cover acupuncture:",
+      "→ \"We offer discounted rates as a cash patient, and we have packages available that can help reduce the cost even further.\"",
+      "",
+      "If the caller is still hesitant about cost after hearing about cash rates:",
+      "→ \"I completely understand. Would it help to have someone from our team give you a quick call to walk through your options personally? We never want cost to be the reason someone doesn't get the care they need.\"",
+      "→ Then offer a callback: collect their name and number and call create_callback.",
+      "",
+      "Insurance often covers pain-related conditions. It typically does NOT cover stress-only or cosmetic services.",
+      "Always position out-of-pocket cost as manageable — packages, discounts, and payment flexibility exist."
+    ],
+    "specialty_intake": [
+      "WORKERS' COMP CALLERS — collect before scheduling:",
+      "- Date of injury, employer, claim number, body parts injured",
+      "- Authorized physician involved? Current work status?",
+      "Note: WC requires an approved MG-2 Variance and carrier approval BEFORE the first visit.",
+      "",
+      "NO FAULT / MVA CALLERS — collect:",
+      "- Date of accident, areas injured, claim number, attorney involvement, imaging done, hospital visit",
+      "Note: No pre-approval required, but verify case is open before scheduling."
+    ],
+    "caller_segments": [
+      "ATHLETE CALLERS:",
+      "\"Many athletes come here for recovery, mobility, injury prevention, and performance support.\"",
+      "\"Dr. Hurme regularly works with endurance athletes and youth athletes.\"",
+      "Collect: sport, upcoming events, acute vs chronic, training limitations, recovery goals.",
+      "",
+      "PEDIATRIC CALLERS:",
+      "Treatments are very gentle, customized for age and sport. Parents must stay in the room."
+    ],
+    "objection_handling": [
+      "\"Does acupuncture hurt?\" → \"Most patients tolerate it very well. Many are surprised by how relaxing it feels.\"",
+      "\"I'm nervous.\" → \"That's completely understandable. The providers are very experienced with nervous patients.\"",
+      "\"My child is afraid of needles.\" → \"Treatments for children are very gentle and customized to their comfort level.\"",
+      "\"I've tried everything.\" → \"Many patients come here after trying multiple treatments without enough relief — you're in the right place.\"",
+      "\"Is it worth it?\" → \"Consistency often leads to the best results. Many patients notice a real difference after a few sessions.\""
+    ],
+    "brand_messaging": [
+      "- \"We've proudly served Long Island since 2008.\"",
+      "- \"Many patients come in after trying other options without enough relief.\"",
+      "- \"Consistency often leads to the best results.\"",
+      "- \"We commonly work with active individuals and chronic pain patients.\""
+    ]
+  },
   "services": [
     {
       "service_id": "acupuncture",

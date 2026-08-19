@@ -1,6 +1,12 @@
 /**
- * Renders an environment-specific ECS task definition from
- * infra/task-definition.template.json plus infra/environments/<env>.json.
+ * Renders a tenant-and-environment-specific ECS task definition from
+ * infra/task-definition.template.json plus
+ * infra/environments/<tenant>.<environment>.json plus tenants/<tenant>.json.
+ *
+ * The clinic's own configuration is injected as one TENANT_CONFIG_JSON variable
+ * rather than templated in, which is what keeps a single image serving every
+ * clinic: no per-tenant build, no per-tenant tag, and a rollback is the same
+ * artifact everywhere.
  *
  * The renderer is deliberately strict: it refuses to emit a task definition
  * that carries an unresolved placeholder, a mutable image tag, a leftover
@@ -15,8 +21,10 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadTenantFile } from '../lib/tenant-file.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const REQUIRED_VALUE_KEYS = [
   'SERVICE', 'ENVIRONMENT', 'NODE_ENV', 'AWS_ACCOUNT_ID', 'AWS_REGION',
@@ -60,9 +68,38 @@ export function substitute(text, values) {
   return rendered;
 }
 
-export function assertEnvironmentConfig(envConfig) {
+export function assertEnvironmentConfig(envConfig, tenant = null) {
   const values = envConfig?.values;
   if (!values) throw new Error('Environment config is missing a "values" object.');
+
+  if (!envConfig.tenant || !SLUG.test(envConfig.tenant)) {
+    throw new Error('Environment config must name its clinic in a "tenant" field, as a lower-case slug.');
+  }
+  if ('TENANT_CONFIG_JSON' in values) {
+    throw new Error('TENANT_CONFIG_JSON is injected from tenants/<slug>.json; remove it from the environment config.');
+  }
+  if (tenant) {
+    if (tenant.slug !== envConfig.tenant) {
+      throw new Error(`Environment config declares tenant "${envConfig.tenant}" but was given tenants/${tenant.slug}.json.`);
+    }
+    // The most likely onboarding mistake is a second clinic's environment file
+    // copied from the first and left branded with the first clinic's name. In
+    // production the name must match exactly; elsewhere it must at least still
+    // be recognisably this clinic, so "<clinic> (STAGING)" stays legal.
+    if (envConfig.environment === 'production') {
+      if (values.BUSINESS_NAME !== tenant.display_name) {
+        throw new Error(
+          `production BUSINESS_NAME is "${values.BUSINESS_NAME}" but tenants/${tenant.slug}.json says `
+          + `"${tenant.display_name}". A clinic must not go live under another clinic's name.`,
+        );
+      }
+    } else if (!values.BUSINESS_NAME.includes(tenant.short_name)) {
+      throw new Error(
+        `${envConfig.environment} BUSINESS_NAME is "${values.BUSINESS_NAME}", which does not mention `
+        + `"${tenant.short_name}". Point this environment at its own clinic.`,
+      );
+    }
+  }
 
   const missing = REQUIRED_VALUE_KEYS.filter((key) => !(key in values));
   if (missing.length > 0) throw new Error(`Environment config is missing required values: ${missing.join(', ')}`);
@@ -97,7 +134,7 @@ export function assertEnvironmentConfig(envConfig) {
   return envConfig;
 }
 
-export function assertRenderedTaskDefinition(definition, envConfig) {
+export function assertRenderedTaskDefinition(definition, envConfig, tenant = null) {
   const containers = definition.containerDefinitions ?? [];
   if (containers.length !== 1) throw new Error('Expected exactly one container definition.');
   const container = containers[0];
@@ -134,23 +171,81 @@ export function assertRenderedTaskDefinition(definition, envConfig) {
 
   if (container.image.endsWith(':latest')) throw new Error('Rendered image still points at :latest.');
 
+  const injected = container.environment.find((entry) => entry.name === 'TENANT_CONFIG_JSON')?.value;
+  if (!injected) throw new Error('TENANT_CONFIG_JSON is missing; the task would boot with no clinic configuration.');
+  let parsedTenant;
+  try {
+    parsedTenant = JSON.parse(injected);
+  } catch (error) {
+    throw new Error(`TENANT_CONFIG_JSON is not valid JSON: ${error.message}`);
+  }
+  if (parsedTenant.slug !== envConfig.tenant) {
+    throw new Error(`TENANT_CONFIG_JSON carries clinic "${parsedTenant.slug}" but this is the ${envConfig.tenant} task definition.`);
+  }
+  if (tenant && parsedTenant.slug !== tenant.slug) {
+    throw new Error(`TENANT_CONFIG_JSON carries clinic "${parsedTenant.slug}" but tenants/${tenant.slug}.json was requested.`);
+  }
+
   return definition;
 }
 
-export function renderTaskDefinition({ templateText, envConfig, imageTag }) {
+export function renderTaskDefinition({ templateText, envConfig, imageTag, tenant }) {
   assertValidImageTag(imageTag);
-  assertEnvironmentConfig(envConfig);
+  assertEnvironmentConfig(envConfig, tenant);
   const values = { ...envConfig.values, IMAGE_TAG: imageTag };
   const definition = JSON.parse(substitute(templateText, values));
-  if (typeof envConfig.readonlyRootFilesystem === 'boolean') {
-    definition.containerDefinitions[0].readonlyRootFilesystem = envConfig.readonlyRootFilesystem;
+  const container = definition.containerDefinitions[0];
+
+  // Injected after substitution rather than templated in: the clinic's
+  // configuration is itself JSON, and pasting it through a text substitution
+  // into a JSON template is an escaping accident waiting to happen.
+  if (tenant) {
+    container.environment.push({ name: 'TENANT_CONFIG_JSON', value: JSON.stringify(tenant) });
   }
-  return assertRenderedTaskDefinition(definition, envConfig);
+
+  if (typeof envConfig.readonlyRootFilesystem === 'boolean') {
+    container.readonlyRootFilesystem = envConfig.readonlyRootFilesystem;
+  }
+  return assertRenderedTaskDefinition(definition, envConfig, tenant);
 }
 
-export function loadEnvironment(environment) {
+export function environmentFileName(tenantSlug, environment) {
+  if (!SLUG.test(tenantSlug)) throw new Error(`Invalid tenant slug: ${tenantSlug}`);
   if (!/^[a-z]+$/.test(environment)) throw new Error(`Invalid environment name: ${environment}`);
-  return JSON.parse(readFileSync(join(HERE, 'environments', `${environment}.json`), 'utf8'));
+  return `${tenantSlug}.${environment}.json`;
+}
+
+/** Google resources a non-production environment must never be pointed at. */
+export const ISOLATED_GOOGLE_KEYS = ['GOOGLE_CALENDAR_ID', 'GOOGLE_SPREADSHEET_ID'];
+
+export function mergeForbiddenValues(declared, productionValues, keys = ISOLATED_GOOGLE_KEYS) {
+  const merged = { ...(declared ?? {}) };
+  for (const key of keys) {
+    const value = productionValues?.[key];
+    if (typeof value !== 'string' || value === '') continue;
+    merged[key] = [...new Set([...(merged[key] ?? []), value])];
+  }
+  return merged;
+}
+
+export function loadEnvironment(environment, tenantSlug) {
+  const file = environmentFileName(tenantSlug, environment);
+  const envConfig = JSON.parse(readFileSync(join(HERE, 'environments', file), 'utf8'));
+  if (environment === 'production') return envConfig;
+
+  // A newly onboarded clinic must not have to remember to copy its own
+  // production calendar and spreadsheet into its staging file's forbiddenValues.
+  // They are derived from that clinic's production file instead, so the
+  // isolation guard is on by default rather than by diligence.
+  try {
+    const productionFile = environmentFileName(tenantSlug, 'production');
+    const production = JSON.parse(readFileSync(join(HERE, 'environments', productionFile), 'utf8'));
+    envConfig.forbiddenValues = mergeForbiddenValues(envConfig.forbiddenValues, production.values);
+  } catch (error) {
+    // A clinic may legitimately have no production environment yet.
+    if (error.code !== 'ENOENT') throw error;
+  }
+  return envConfig;
 }
 
 export function loadTemplateText() {
@@ -169,17 +264,19 @@ function parseArgs(argv) {
 if (process.argv[1] && process.argv[1].endsWith('render.mjs')) {
   const args = parseArgs(process.argv.slice(2));
   const environment = args.env;
-  if (!environment) {
-    console.error('usage: node infra/render.mjs --env <staging|production> --image-tag <tag> [--out <path>]');
+  const tenantSlug = args.tenant;
+  if (!environment || !tenantSlug) {
+    console.error('usage: node infra/render.mjs --tenant <slug> --env <staging|production> --image-tag <tag> [--out <path>]');
     process.exit(2);
   }
   try {
     const definition = renderTaskDefinition({
       templateText: loadTemplateText(),
-      envConfig: loadEnvironment(environment),
+      envConfig: loadEnvironment(environment, tenantSlug),
+      tenant: loadTenantFile(tenantSlug),
       imageTag: args['image-tag'],
     });
-    const output = args.out ?? join(HERE, 'generated', `task-definition.${environment}.json`);
+    const output = args.out ?? join(HERE, 'generated', `task-definition.${tenantSlug}.${environment}.json`);
     mkdirSync(dirname(output), { recursive: true });
     writeFileSync(output, `${JSON.stringify(definition, null, 2)}\n`, 'utf8');
     console.log(output);

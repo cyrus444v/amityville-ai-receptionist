@@ -13,7 +13,10 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = resolve(__dirname, '../..');
 const read = (relative: string) => readFileSync(resolve(repoRoot, relative), 'utf8');
 
-const template = read('infra/cloudformation/voice-agent-core.yml');
+// Renamed from voice-agent-core.yml when the stack was split per clinic.
+// tests/infra/cloudformation.spec.ts checks the same file structurally;
+// these remain as string-level guards over what parsing cannot see.
+const template = read('infra/cloudformation/tenant-service.yml');
 const deploy = read('.github/workflows/deploy.yml');
 const ci = read('.github/workflows/ci.yml');
 
@@ -109,8 +112,13 @@ describe('deploy workflow', () => {
 
   it('deploys an immutable commit-tagged image via the renderer', () => {
     expect(deploy).toContain('IMAGE_TAG: ${{ github.sha }}');
-    expect(deploy).toContain('infra/render.mjs --env staging');
-    expect(deploy).toContain('infra/render.mjs --env production');
+    // Each environment is rendered for a named clinic. The slug reaches the
+    // renderer through the step environment, never interpolated into the shell
+    // command, so a hostile workflow input cannot become part of a script.
+    expect(deploy).toContain('infra/render.mjs --tenant "$TENANT" --env staging');
+    expect(deploy).toContain('infra/render.mjs --tenant "$TENANT" --env production');
+    expect(deploy).toContain('TENANT: ${{ inputs.tenant }}');
+    expect(deploy).not.toMatch(/--tenant "\$\{\{/);
     expect(deploy).not.toContain('ecs-task-definition.json');
   });
 

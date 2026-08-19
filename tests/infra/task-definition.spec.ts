@@ -10,16 +10,32 @@ import { describe, expect, it } from 'vitest';
 import {
   REQUIRED_SECRET_NAMES,
   assertValidImageTag,
+  environmentFileName,
   loadEnvironment,
+  mergeForbiddenValues,
   loadTemplateText,
   renderTaskDefinition,
   substitute,
 } from '../../infra/render.mjs';
+import { loadTenantFile } from '../../lib/tenant-file.mjs';
 
 const SHA = '5e4e0c025d05447d41f766f02ca41ea2f91cece8';
+const TENANT = 'amityville-wellness';
+const tenant = loadTenantFile(TENANT);
 
 function envConfig(environment: string) {
-  return loadEnvironment(environment);
+  return loadEnvironment(environment, TENANT);
+}
+
+/** Renders with clinic #1 unless a test deliberately supplies another. */
+function render(config: any, overrides: Record<string, unknown> = {}) {
+  return renderTaskDefinition({
+    templateText: loadTemplateText(),
+    envConfig: config,
+    tenant,
+    imageTag: SHA,
+    ...overrides,
+  });
 }
 
 function stagingWithGoogleIds(overrides: Record<string, string> = {}) {
@@ -53,11 +69,7 @@ describe('placeholder substitution', () => {
 });
 
 describe('production task definition', () => {
-  const definition = renderTaskDefinition({
-    templateText: loadTemplateText(),
-    envConfig: envConfig('production'),
-    imageTag: SHA,
-  });
+  const definition = render(envConfig('production'));
   const container = definition.containerDefinitions[0];
   const env = new Map(container.environment.map((entry: { name: string; value: string }) => [entry.name, entry.value]));
 
@@ -106,37 +118,21 @@ describe('production task definition', () => {
 
 describe('staging isolation', () => {
   it('refuses to render while operator placeholders remain', () => {
-    expect(() => renderTaskDefinition({
-      templateText: loadTemplateText(),
-      envConfig: envConfig('staging'),
-      imageTag: SHA,
-    })).toThrow(/operator placeholders/);
+    expect(() => render(envConfig('staging'))).toThrow(/operator placeholders/);
   });
 
   it('refuses to point staging at the production calendar', () => {
     const config = stagingWithGoogleIds({ GOOGLE_CALENDAR_ID: 'cyrus.lang1@gmail.com' });
-    expect(() => renderTaskDefinition({
-      templateText: loadTemplateText(),
-      envConfig: config,
-      imageTag: SHA,
-    })).toThrow(/may not use the production value for GOOGLE_CALENDAR_ID/);
+    expect(() => render(config)).toThrow(/may not use the production value for GOOGLE_CALENDAR_ID/);
   });
 
   it('refuses to point staging at the production spreadsheet', () => {
     const config = stagingWithGoogleIds({ GOOGLE_SPREADSHEET_ID: '1Nn7nMjzC0SkqP2PcjE69i_J-tmGiDUsXyCIpSjCDTjs' });
-    expect(() => renderTaskDefinition({
-      templateText: loadTemplateText(),
-      envConfig: config,
-      imageTag: SHA,
-    })).toThrow(/may not use the production value for GOOGLE_SPREADSHEET_ID/);
+    expect(() => render(config)).toThrow(/may not use the production value for GOOGLE_SPREADSHEET_ID/);
   });
 
   it('renders a fully isolated staging definition once configured', () => {
-    const definition = renderTaskDefinition({
-      templateText: loadTemplateText(),
-      envConfig: stagingWithGoogleIds(),
-      imageTag: SHA,
-    });
+    const definition = render(stagingWithGoogleIds());
     const container = definition.containerDefinitions[0];
     const env = new Map(container.environment.map((entry: { name: string; value: string }) => [entry.name, entry.value]));
     expect(env.get('COORDINATION_TABLE')).toBe('ai-receptionist-staging-coordination');
@@ -150,19 +146,95 @@ describe('staging isolation', () => {
   it('rejects a config whose declared environment disagrees with its values', () => {
     const config = stagingWithGoogleIds();
     config.values.ENVIRONMENT = 'production';
-    expect(() => renderTaskDefinition({
-      templateText: loadTemplateText(),
-      envConfig: config,
-      imageTag: SHA,
-    })).toThrow(/Environment mismatch/);
+    expect(() => render(config)).toThrow(/Environment mismatch/);
   });
 
   it('rejects a non-production NODE_ENV that would enable the dev bypasses', () => {
     const config = stagingWithGoogleIds({ NODE_ENV: 'development' });
-    expect(() => renderTaskDefinition({
-      templateText: loadTemplateText(),
-      envConfig: config,
-      imageTag: SHA,
-    })).toThrow(/NODE_ENV must be "production"/);
+    expect(() => render(config)).toThrow(/NODE_ENV must be "production"/);
+  });
+});
+
+describe('tenant wiring', () => {
+  it('keys environment files by clinic and environment', () => {
+    expect(environmentFileName(TENANT, 'production')).toBe('amityville-wellness.production.json');
+    expect(() => environmentFileName('Amityville Wellness', 'production')).toThrow(/Invalid tenant slug/);
+    expect(() => environmentFileName(TENANT, 'Production')).toThrow(/Invalid environment name/);
+  });
+
+  it('injects the clinic configuration the container boots from', () => {
+    const definition = render(envConfig('production'));
+    const env = new Map(definition.containerDefinitions[0].environment
+      .map((entry: { name: string; value: string }) => [entry.name, entry.value]));
+    const injected = JSON.parse(env.get('TENANT_CONFIG_JSON') as string);
+    expect(injected.slug).toBe(TENANT);
+    expect(injected.business_hours.tuesday).toEqual({ open: '09:00', close: '17:00', closed: false });
+    expect(injected.services).toHaveLength(tenant.services.length);
+    expect(injected.prompt.spoken_name).toBe(tenant.prompt.spoken_name);
+  });
+
+  it('refuses to render without a clinic configuration to inject', () => {
+    expect(() => render(envConfig('production'), { tenant: null }))
+      .toThrow(/TENANT_CONFIG_JSON is missing/);
+  });
+
+  it('refuses an environment file that does not name its clinic', () => {
+    const config = envConfig('production');
+    delete config.tenant;
+    expect(() => render(config)).toThrow(/must name its clinic in a "tenant" field/);
+  });
+
+  it('refuses an environment file paired with a different clinic', () => {
+    const config = envConfig('production');
+    config.tenant = 'some-other-clinic';
+    expect(() => render(config)).toThrow(/declares tenant "some-other-clinic"/);
+  });
+
+  it('refuses a hand-set TENANT_CONFIG_JSON that would shadow the injected one', () => {
+    const config = envConfig('production');
+    config.values.TENANT_CONFIG_JSON = '{}';
+    expect(() => render(config)).toThrow(/is injected from tenants/);
+  });
+
+  it("refuses to take a clinic live under another clinic's name", () => {
+    const config = envConfig('production');
+    config.values.BUSINESS_NAME = 'Some Other Clinic';
+    expect(() => render(config)).toThrow(/must not go live under another clinic's name/);
+  });
+
+  it('refuses a staging environment branded as a different clinic', () => {
+    const config = stagingWithGoogleIds({ BUSINESS_NAME: 'Clinic B (STAGING)' });
+    expect(() => render(config)).toThrow(/does not mention "Amityville Wellness"/);
+  });
+
+  it("still allows a staging suffix on the clinic's own name", () => {
+    const definition = render(stagingWithGoogleIds());
+    const env = new Map(definition.containerDefinitions[0].environment
+      .map((entry: { name: string; value: string }) => [entry.name, entry.value]));
+    expect(env.get('BUSINESS_NAME')).toContain('STAGING');
+    expect(JSON.parse(env.get('TENANT_CONFIG_JSON') as string).slug).toBe(TENANT);
+  });
+});
+
+describe('staging isolation is derived, not remembered', () => {
+  it('forbids the production Google resources even when staging does not list them', () => {
+    const config = loadEnvironment('staging', TENANT);
+    expect(config.forbiddenValues.GOOGLE_CALENDAR_ID).toContain('cyrus.lang1@gmail.com');
+    expect(config.forbiddenValues.GOOGLE_SPREADSHEET_ID)
+      .toContain('1Nn7nMjzC0SkqP2PcjE69i_J-tmGiDUsXyCIpSjCDTjs');
+  });
+
+  it('unions what the file declares with what production actually uses', () => {
+    const merged = mergeForbiddenValues(
+      { GOOGLE_CALENDAR_ID: ['old-calendar@example.invalid'] },
+      { GOOGLE_CALENDAR_ID: 'live-calendar@example.invalid', GOOGLE_SPREADSHEET_ID: 'live-sheet' },
+    );
+    expect(merged.GOOGLE_CALENDAR_ID).toEqual(['old-calendar@example.invalid', 'live-calendar@example.invalid']);
+    expect(merged.GOOGLE_SPREADSHEET_ID).toEqual(['live-sheet']);
+  });
+
+  it('ignores an absent or empty production value rather than forbidding the empty string', () => {
+    expect(mergeForbiddenValues({}, { GOOGLE_CALENDAR_ID: '' })).toEqual({});
+    expect(mergeForbiddenValues({}, {})).toEqual({});
   });
 });

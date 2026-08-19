@@ -20,6 +20,8 @@
     "local:dynamo:init": "node scripts/bootstrap-local-dynamo.mjs",
     "local:dynamo:down": "docker compose -f docker-compose.local.yml down",
     "retell:tools": "node scripts/retell-tools-for.mjs",
+    "retell:agent": "node scripts/render-retell-agent.mjs",
+    "new-tenant": "node scripts/new-tenant.mjs",
     "eval:static": "python3 evals/eval_runner.py --repo . --config evals/config.json --static",
     "eval:transcripts": "python3 evals/eval_runner.py --repo . --config evals/config.json --transcripts harness/transcripts/voice-agent.jsonl"
   },
@@ -40,8 +42,10 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.2",
     "@types/supertest": "^6.0.3",
+    "js-yaml": "^5.3.0",
     "supertest": "^7.1.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",

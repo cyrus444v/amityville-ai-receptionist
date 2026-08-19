@@ -10,18 +10,43 @@ action below is an operator step that Cyrus runs deliberately.
 
 ## Topology
 
-Two identical stacks, one per environment, sharing no state:
+One shared load balancer per environment, and one stack per clinic per
+environment behind it. Clinics share no state whatsoever — not a table, not a
+secret, not a Google resource.
 
 ```
-infra/cloudformation/voice-agent-core.yml   one stack per environment
-  ├── DynamoDB  ai-receptionist-<env>-coordination   TTL on `ttl`, SSE, PITR+deletion protection in production
-  ├── Logs      /ecs/ai-receptionist-<env>           30d staging / 365d production
-  ├── Secrets   ai-receptionist/<env>/{TOOL_AUTH_SECRET, APPOINTMENT_TOKEN_SECRET,
+infra/cloudformation/shared-alb.yml         one stack per environment
+  ├── ALB       voice-agent-<env>            internet-facing, one for all clinics
+  ├── Listener  :443 HTTPS                   TLS 1.3 policy; default action is 404,
+  │                                          never a forward to some other clinic
+  └── Listener  :80  HTTP                    301 to HTTPS
+
+infra/cloudformation/tenant-service.yml     one stack per clinic per environment
+  ├── DynamoDB  <svc>-<env>-coordination     TTL on `ttl`, SSE, PITR+deletion protection in production
+  ├── Logs      /ecs/<svc>-<env>             30d staging / 365d production
+  ├── Secrets   <svc>/<env>/{TOOL_AUTH_SECRET, APPOINTMENT_TOKEN_SECRET,
   │             RETELL_WEBHOOK_SECRET, GOOGLE_CREDENTIALS_BASE64, RESEND_API_KEY}
   ├── IAM       <svc>-<env>-task-execution   may read exactly those five secrets
   ├── IAM       <svc>-<env>-task             may touch exactly that one table
-  └── IAM       <svc>-<env>-github-deploy    OIDC, scoped to one repo + one environment
+  ├── IAM       <svc>-<env>-github-deploy    OIDC, scoped to one repo + one environment
+  ├── TargetGrp <svc>-<env>-tg               health check on /health
+  ├── Cert      this clinic's certificate, added to the shared listener
+  ├── Rule      host-header <clinic hostname> → this clinic's target group
+  ├── SecGroup  accepts :8080 from the load balancer's group only
+  └── ECS       <svc>-backend on FARGATE, circuit breaker with rollback
 ```
+
+`<svc>` is the `SERVICE` value in the clinic's environment file. Clinic #1 keeps
+`ai-receptionist`, because its table, secrets and roles already exist in the
+account under that name; `new-tenant` sets `SERVICE = <slug>` for every clinic
+onboarded afterwards, so their resources are named after them.
+
+**Neither template has ever been submitted to AWS.** Both say so in their
+`Description`. `tests/infra/cloudformation.spec.ts` parses them and resolves every
+`Ref`, `Fn::GetAtt` and `Fn::Sub` name against what the template declares, which
+catches a misspelt reference offline — but it cannot tell you whether AWS accepts
+the resource properties, and the VPC, subnet and certificate parameters still have
+to come from the real account.
 
 `TOOL_AUTH_SECRET` and `APPOINTMENT_TOKEN_SECRET` use CloudFormation's
 `GenerateSecretString`, so those two values are minted inside AWS and never pass
@@ -38,15 +63,24 @@ calendar, the live spreadsheet, a mutable `:latest` image tag, and a duplicated
 It is replaced by a template plus a strict renderer:
 
 ```
-infra/task-definition.template.json      shape, with ${PLACEHOLDER} values
-infra/environments/production.json       non-secret production values
-infra/environments/staging.json          non-secret staging values
-infra/render.mjs                         renders + validates
+infra/task-definition.template.json           shape, with ${PLACEHOLDER} values
+infra/environments/<slug>.production.json     non-secret production values, per clinic
+infra/environments/<slug>.staging.json        non-secret staging values, per clinic
+tenants/<slug>.json                           the clinic itself: identity, hours, services, prompt
+infra/render.mjs                              renders + validates
 ```
 
 ```bash
-npm run infra:render -- --env staging --image-tag "$(git rev-parse HEAD)"
+npm run infra:render -- --tenant amityville-wellness --env staging --image-tag "$(git rev-parse HEAD)"
 ```
+
+The clinic's configuration is injected as a single `TENANT_CONFIG_JSON` variable
+(~9.5 KB compact, well inside the task-definition limit), *after* placeholder
+substitution rather than through it — the clinic file is itself JSON, and pushing
+it through a text substitution into a JSON template is an escaping accident
+waiting to happen. That injection is what keeps **one image for every clinic**: no
+per-tenant build, no per-tenant tag, and a rollback is the same artifact
+everywhere.
 
 The renderer refuses to emit a definition that has an unresolved placeholder, a
 mutable image tag, a leftover `REPLACE_WITH_*` sentinel, a duplicated
@@ -55,18 +89,42 @@ table name that disagrees with the CloudFormation stack, or `NODE_ENV` set to
 anything but `production`. Staging additionally refuses to start if it is
 pointed at the production calendar or the production appointment spreadsheet —
 a booking agent that writes rehearsal appointments into the live calendar is the
-single most expensive mistake available here, so it is blocked in code.
+single most expensive mistake available here, so it is blocked in code. That
+guard is **derived, not remembered**: a non-production environment automatically
+forbids whatever its own clinic's production file points at, so a newly onboarded
+clinic cannot forget to fill in `forbiddenValues`.
+
+Three more refusals came with the multi-tenant work, all aimed at the same
+mistake — a second clinic's files copied from the first and not fully edited:
+
+- an environment file that does not name its clinic in a `tenant` field;
+- an environment file whose `tenant` disagrees with the clinic file it is rendered against;
+- a **production** `BUSINESS_NAME` that is not exactly the clinic's `display_name`,
+  or a non-production one that does not even mention the clinic's short name. A
+  clinic must not go live under another clinic's name.
 
 `tests/infra/task-definition.spec.ts` covers each of those failure modes.
 
 ## Deploying
 
 ```bash
+# once per environment
 aws cloudformation deploy \
-  --template-file infra/cloudformation/voice-agent-core.yml \
+  --template-file infra/cloudformation/shared-alb.yml \
+  --stack-name voice-agent-staging-alb \
+  --parameter-overrides EnvironmentName=staging VpcId=<vpc> PublicSubnetIds=<subnet-a,subnet-b> \
+                        DefaultCertificateArn=<acm-arn>
+
+# once per clinic per environment
+aws cloudformation deploy \
+  --template-file infra/cloudformation/tenant-service.yml \
   --stack-name ai-receptionist-staging \
   --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides EnvironmentName=staging CreateGitHubOidcProvider=yes
+  --parameter-overrides EnvironmentName=staging CreateGitHubOidcProvider=yes \
+                        TenantSlug=amityville-wellness HostName=<host> CertificateArn=<acm-arn> \
+                        ListenerRulePriority=100 HttpsListenerArn=<from shared-alb> \
+                        LoadBalancerSecurityGroupId=<from shared-alb> VpcId=<vpc> \
+                        TaskSubnetIds=<subnet-a,subnet-b> ClusterName=<cluster>
 ```
 
 Then the same command for `production` with `CreateGitHubOidcProvider=no` (the
@@ -158,7 +216,7 @@ cross-caller attempt.
 1. Rotate the exposed Google service-account key in Google Cloud.
 2. Deploy the two CloudFormation stacks.
 3. Put the Google, Retell and Resend secret values into Secrets Manager.
-4. Fill in `infra/environments/staging.json` with a staging calendar ID and a
+4. Fill in `infra/environments/amityville-wellness.staging.json` with a staging calendar ID and a
    staging spreadsheet ID. The renderer refuses to build staging until you do.
 5. Create the staging ECS cluster/service (`ai-receptionist-staging`) and confirm
    the production cluster name matches `ai-receptionist-production`.

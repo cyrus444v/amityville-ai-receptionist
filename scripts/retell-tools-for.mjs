@@ -16,9 +16,10 @@
  * written into a file destined for a dashboard paste.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isThrowawayHost, loadTools, parseHttpsBase, rewriteToolUrls } from './lib/retell-tools.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
@@ -39,23 +40,16 @@ if (!baseUrl) {
 
 let parsed;
 try {
-  parsed = new URL(baseUrl);
-} catch {
-  console.error(`Not a valid URL: ${baseUrl}`);
+  parsed = parseHttpsBase(baseUrl);
+} catch (error) {
+  console.error(error.message);
   process.exit(2);
 }
-if (parsed.protocol !== 'https:') {
-  console.error('Retell requires HTTPS tool URLs. Use a tunnel that terminates TLS.');
-  process.exit(2);
-}
-
-const isThrowawayHost = /(^|\.)(trycloudflare\.com|ngrok(-free)?\.app|ngrok\.io|loca\.lt)$/.test(parsed.hostname);
-if (inlineSecret && !isThrowawayHost) {
+if (inlineSecret && !isThrowawayHost(parsed.hostname)) {
   console.error('--inline-secret is only allowed for a throwaway tunnel host. Use a Retell dynamic variable instead.');
   process.exit(2);
 }
 
-const tools = JSON.parse(readFileSync(resolve(repoRoot, 'retell/tools.json'), 'utf8'));
 const secret = process.env.TOOL_AUTH_SECRET;
 if (inlineSecret && !secret) {
   console.error('--inline-secret needs TOOL_AUTH_SECRET in the environment (see the dev:local banner).');
@@ -63,12 +57,13 @@ if (inlineSecret && !secret) {
 }
 
 const origin = `${parsed.protocol}//${parsed.host}`;
-const rewritten = tools.map((tool) => {
-  const path = new URL(tool.url).pathname;
-  const next = { ...tool, url: `${origin}${path}` };
-  if (inlineSecret) next.headers = { ...tool.headers, 'x-tool-auth': secret };
-  return next;
-});
+let rewritten;
+try {
+  rewritten = rewriteToolUrls(loadTools(repoRoot), baseUrl, { inlineSecret: inlineSecret ? secret : null });
+} catch (error) {
+  console.error(error.message);
+  process.exit(2);
+}
 
 const outPath = arg('out', resolve(repoRoot, 'retell/generated', `tools.${label}.json`));
 mkdirSync(dirname(outPath), { recursive: true });

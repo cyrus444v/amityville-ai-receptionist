@@ -109,11 +109,45 @@ record(
   `${todayDate} (${today.body?.today?.day_of_week})`,
 );
 
-const bookingDate = arg('date', process.env.LOCAL_CHECK_DATE);
+// The clinic decides which day and which hours are bookable, so the checker asks
+// it rather than assuming. That is what lets this same script verify a second
+// clinic with a different week and a different catalogue.
+const bookingDate = arg('date', process.env.LOCAL_CHECK_DATE ?? resetInfo?.demo_date);
+
+const clinic = await call('/clinic-info');
+const clinicHours = clinic.body?.clinic?.business_hours;
+record('clinic-info reports the clinic and its hours', Boolean(clinic.body?.clinic?.name) && Boolean(clinicHours),
+  String(clinic.body?.clinic?.name));
+
+const catalogue = await call('/services');
+const offered = (catalogue.body?.services ?? []).map((service) => service.name);
+record('the clinic offers a catalogue to book from', offered.length > 0, `${offered.length} services`);
+
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+/** Whole hours the clinic is open on `date`, excluding the seeded demo slot. */
+function bookableHoursOn(date) {
+  const dayName = DAY_NAMES[new Date(`${date}T12:00:00Z`).getUTCDay()];
+  const hours = clinicHours?.[dayName];
+  if (!hours || hours.closed) return [];
+  const minutes = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+  const slots = [];
+  for (let at = minutes(hours.open); at + 60 <= minutes(hours.close); at += 60) {
+    slots.push(`${String(Math.floor(at / 60)).padStart(2, '0')}:${String(at % 60).padStart(2, '0')}`);
+  }
+  return slots.filter((slot) => slot !== resetInfo?.demo_time);
+}
+
 if (!bookingDate) {
   console.log('\nPass --date YYYY-MM-DD (the seeded date from the dev:local banner) to run the booking flow.');
+} else if (bookableHoursOn(bookingDate).length < 3) {
+  console.log(`\n${bookingDate} has fewer than three free hours in this clinic's schedule; pass --date for one of its open days.`);
 } else {
-  const availability = await call('/check-availability', { method: 'POST', body: { date: bookingDate, time: '15:00' } });
+  const [firstSlot, secondSlot, thirdSlot] = bookableHoursOn(bookingDate);
+  const service = offered[0];
+  console.log(`note  booking ${service} on ${bookingDate} at ${firstSlot}/${secondSlot}, rescheduling to ${thirdSlot}`);
+
+  const availability = await call('/check-availability', { method: 'POST', body: { date: bookingDate, time: firstSlot } });
   record('availability check succeeds', availability.body.available === true, String(availability.body.status));
 
   const booking = await call('/create-appointment', {
@@ -121,9 +155,9 @@ if (!bookingDate) {
     body: {
       full_name: 'Local Check',
       phone: caller,
-      service: 'Acupuncture',
+      service,
       date: bookingDate,
-      time: '15:00',
+      time: firstSlot,
       first_visit: true,
       referral_source: 'Local check',
     },
@@ -133,39 +167,39 @@ if (!bookingDate) {
   const replay = await call('/create-appointment', {
     method: 'POST',
     headers: { 'Idempotency-Key': 'local-check-1' },
-    body: { full_name: 'Local Check', phone: caller, service: 'Acupuncture', date: bookingDate, time: '16:00' },
+    body: { full_name: 'Local Check', phone: caller, service, date: bookingDate, time: secondSlot },
   });
   const replayAgain = await call('/create-appointment', {
     method: 'POST',
     headers: { 'Idempotency-Key': 'local-check-1' },
-    body: { full_name: 'Local Check', phone: caller, service: 'Acupuncture', date: bookingDate, time: '16:00' },
+    body: { full_name: 'Local Check', phone: caller, service, date: bookingDate, time: secondSlot },
   });
   record('idempotent retry replays instead of double-booking', replay.status === 200 && replayAgain.status === 200);
 
-  const taken = await call('/check-availability', { method: 'POST', body: { date: bookingDate, time: '15:00' } });
+  const taken = await call('/check-availability', { method: 'POST', body: { date: bookingDate, time: firstSlot } });
   record('the slot just booked is now unavailable', taken.body.available === false, String(taken.body.status));
 
   // two-step verified lookup, then reschedule
-  const first = await call('/find-appointment', { method: 'POST', body: { phone: caller, appointment_date: bookingDate, appointment_time: '15:00' } });
+  const first = await call('/find-appointment', { method: 'POST', body: { phone: caller, appointment_date: bookingDate, appointment_time: firstSlot } });
   const token = first.body.appointment_token;
   record('unique lookup returns only a selection token', first.body.selection_required === true && Boolean(token) && first.body.service === undefined);
 
   const details = await call('/find-appointment', { method: 'POST', body: { phone: caller, appointment_token: token } });
-  record('token exchange discloses the appointment', details.body.found === true && details.body.time === '15:00');
+  record('token exchange discloses the appointment', details.body.found === true && details.body.time === firstSlot);
 
-  const noToken = await call('/reschedule-appointment', { method: 'POST', body: { phone: caller, new_date: bookingDate, new_time: '13:00' } });
+  const noToken = await call('/reschedule-appointment', { method: 'POST', body: { phone: caller, new_date: bookingDate, new_time: thirdSlot } });
   record('reschedule without a token is refused', noToken.status === 400);
 
   const stolen = await call('/reschedule-appointment', {
     method: 'POST',
     headers: { 'x-retell-caller-phone': '+19995550000' },
-    body: { appointment_id: details.body.appointment_id, phone: caller, appointment_token: token, new_date: bookingDate, new_time: '13:00' },
+    body: { appointment_id: details.body.appointment_id, phone: caller, appointment_token: token, new_date: bookingDate, new_time: thirdSlot },
   });
   record('reschedule from another caller is refused', stolen.status === 404 || stolen.status === 403);
 
   const moved = await call('/reschedule-appointment', {
     method: 'POST',
-    body: { appointment_id: details.body.appointment_id, phone: caller, appointment_token: token, new_date: bookingDate, new_time: '13:00' },
+    body: { appointment_id: details.body.appointment_id, phone: caller, appointment_token: token, new_date: bookingDate, new_time: thirdSlot },
   });
   record('verified reschedule succeeds', moved.body.success === true, moved.body.message ?? '');
 
@@ -175,8 +209,10 @@ if (!bookingDate) {
   });
   record('verified cancellation succeeds', cancelled.body.success === true);
 
-  const services = await call('/search-services', { method: 'POST', body: { query: 'microneedling' } });
-  record('service search is grounded', (services.body.count ?? 0) > 0, String(services.body.service_names));
+  const services = await call('/search-services', { method: 'POST', body: { query: service } });
+  record('service search is grounded in this clinic\'s own catalogue',
+    (services.body.count ?? 0) > 0 && (services.body.service_names ?? []).includes(service),
+    String(services.body.service_names));
 
   const callback = await call('/create-callback', { method: 'POST', body: { caller_name: 'Local Check', phone: caller } });
   record('callback fallback works', callback.body.success === true);
