@@ -1,0 +1,134 @@
+Du übernimmst den AIVANCE Voice-Agent Build bei Phase B. Das Repo:
+
+  /Users/cyruslang/aivance-voice-agent
+
+Branch: agent/claude-infra-20260818, origin ist GitHub
+(cyrus444v/amityville-ai-receptionist). Phase A ist fertig und committed
+(968e861, 19f1b39, 7946eba). Nicht gepusht.
+
+Lies zuerst, in dieser Reihenfolge:
+  docs/INFRASTRUCTURE.md           <- Abschnitt "Current AWS reality" ZUERST
+  docs/CLAUDE_CODE_HANDOFF.md      <- Auftrag, 4 Phasen, Ground Rules
+  infra/iam/README.md              <- welche Rechte der Key hat und warum
+  docs/GO_LIVE.md                  <- Runbook, ab "Before Phase 1"
+
+Ziel: Amityville Wellness auf echten Servern live-fähig machen. Phase A hat das
+System mandantenfähig gemacht; jetzt geht es um AWS.
+
+WICHTIG — die alte Prämisse des Projekts ist falsch, glaub ihr nicht:
+Ältere Dokumente behaupten, irgendwas serve schon api.amityvillewellness.com, es
+gäbe also Cluster, Service, Load Balancer und Zertifikat. Read-only Discovery am
+19.08.2026 hat gezeigt: es gibt KEINEN Load Balancer im Account,
+api.amityvillewellness.com löst NICHT auf (NXDOMAIN), und der eine laufende
+ECS-Service hängt an einer Target Group ohne Load Balancer — verwaist, laufend,
+unerreichbar, und mit einer Task-Definition von vor dem Security-Baseline
+(kein TOOL_AUTH_SECRET, kein COORDINATION_TABLE, kein TENANT_CONFIG_JSON).
+Die Klinik hat aktuell KEINEN funktionierenden Telefon-Agenten.
+
+Das ist gut: kein Live-Traffic, kein Cutover-Risiko. Das hier ist ein Erst-Launch.
+
+Harte Fakten aus der Discovery (Account 668764275927, us-east-1):
+  VPC              vpc-013d30115da21e448  (Default-VPC, 172.31.0.0/16)
+  Subnets          subnet-0af34467789fd745e (us-east-1a)
+                   subnet-07e1fa6100fc4d8c6 (us-east-1b)   beide public
+  Cluster          ai-receptionist   (der einzige; verwaist, wird aufgeräumt)
+  ECR              ai-receptionist-backend   (Tag-Mutability: MUTABLE)
+  Target Group     ai-receptionist-tg   (LoadBalancerArns: [] -> verwaist)
+  DNS              amityvillewellness.com liegt bei GoDaddy, NICHT Route53
+
+Bereits entschieden, nicht neu aufrollen:
+1. Zwei NEUE Cluster: ai-receptionist-staging und ai-receptionist-production.
+   Kein Code-Change nötig — deploy.yml nennt sie schon, und der Stack erzeugt den
+   Service als ${ServiceName}-backend = ai-receptionist-backend.
+2. Erst-Launch, kein Cutover.
+3. Der Deploy-Key bekommt temporär Provisioning-Rechte
+   (infra/iam/phase-b-provisioning-policy.json), die am Ende von Phase B wieder
+   abgehen müssen.
+
+Credentials:
+Cyrus legt ein Profil an, z.B. "voice-agent-phase-b", und nennt dir NUR den
+Namen. Arbeite mit AWS_PROFILE=<name> AWS_REGION=us-east-1. Lies die
+Credentials-Datei nie aus und gib niemals einen Key-Wert in die Ausgabe — der
+vorherige Key ist genau dadurch verbrannt und muss gelöscht werden
+(AKIAZXNLVATL5LCGWPXQ, User aivance-deploy).
+
+Deine Aufgabe, in dieser Reihenfolge:
+
+A. Read-only, ohne Rückfrage:
+   1. Existiert ein ACM-Zertifikat für api.amityvillewellness.com? Das ist der
+      eine echte Blocker. Ohne Zertifikat kein HTTPS-Listener.
+   2. Discovery-Lücken schließen: dynamodb list-tables, secretsmanager
+      list-secrets. Ergebnisse in docs/INFRASTRUCTURE.md nachtragen.
+   3. cloudformation validate-template gegen infra/cloudformation/shared-alb.yml
+      und infra/cloudformation/tenant-service.yml. Beide waren noch NIE bei AWS.
+      Erwarte Fehler, korrigiere die Templates, und halte
+      tests/infra/cloudformation.spec.ts dabei grün.
+   4. Changeset mit --no-execute-changeset erzeugen und Cyrus zeigen.
+
+B. Dann ANHALTEN und Cyrus fragen, bevor die erste Ressource entsteht.
+   Ein ALB und IAM-Rollen sind nicht trivial rückholbar.
+
+C. Nach seinem OK: shared-alb.yml (einmal pro Umgebung), dann
+   tenant-service.yml für amityville-wellness. Parameter:
+     TenantSlug=amityville-wellness  ServiceName=ai-receptionist
+     ClusterName=ai-receptionist-staging  CreateCluster=yes
+     HostName=api.amityvillewellness.com  ListenerRulePriority=100
+     VpcId / TaskSubnetIds / PublicSubnetIds siehe oben
+   BootstrapTaskDefinitionArn bleibt im ersten Durchlauf leer; danach
+     npm run infra:render -- --tenant amityville-wellness --env staging \
+       --image-tag <sha>
+   registrieren und den Parameter setzen.
+
+D. Zwei Schritte, die NUR Cyrus machen kann (bei GoDaddy, nicht in AWS):
+   - die ACM-Validierungs-CNAMEs eintragen. Gib ihm die exakten Name/Value-Paare.
+   - CNAME api.amityvillewellness.com -> DNS-Name des ALB.
+   Erst danach ist ein Testanruf überhaupt möglich.
+
+E. Aufräumen (steht als Liste in docs/INFRASTRUCTURE.md): verwaiste Target Group,
+   unerreichbarer Service samt Cluster ai-receptionist, ECR auf IMMUTABLE,
+   alte Secrets ai-receptionist/<NAME>. Und: Provisioning-Policy detachen,
+   Key rotieren.
+
+Harte Regeln:
+- /Users/cyruslang/Desktop/amityville-ai-receptionist/backend NIEMALS anfassen
+  (uncommittete Änderungen von Cyrus). Lesen ok — liegt als Remote
+  "local-desktop" bereit — aber kein edit/stash/reset/commit.
+- Kein Test, Eval, Auth-Boundary oder Fail-Closed-Guard wird abgeschwächt, um grün
+  zu werden. Wenn ein Check falsch ist: Check korrigieren und begründen.
+- Kein Merge nach main, kein git push, und keine AWS-Ressource anlegen, ändern
+  oder löschen ohne dass Cyrus in dem Moment explizit zustimmt. Read-only
+  Discovery und validate-template sind davon ausgenommen.
+- Der alte Google-Service-Account-Key ist kompromittiert und liegt in der
+  Git-History. Nicht rekonstruieren, nicht aus der History lesen. Muss in Google
+  Cloud rotiert werden, BEVOR Produktionsverkehr läuft. Gilt weiterhin.
+- Patientendaten sind PHI: keine echten Datensätze in Logs, Fixtures oder Commits.
+- Niemals einen Credential-Wert in die Ausgabe schreiben.
+
+Nach jedem Schritt: npm run test:ci
+Aktueller Stand ist grün und soll grün bleiben:
+  npm run build              clean
+  npm run test:ci            232 Tests, 18 Files
+  npm run harness            19
+  npm run eval:static        48/48
+  npm run eval:transcripts   48/48
+  npm run local:check        22/22 — gegen einen laufenden Server, für JEDE
+                             von zwei Kliniken (amityville-wellness und
+                             riverside-physio, die Referenz-Zweitklinik)
+
+Notizen, die dir Zeit sparen:
+- NODE_ENV=production ist in manchen Shells auf dieser Maschine gesetzt. Dann
+  fehlt tsc. Bei komisch scheiternden Builds: env -u NODE_ENV davorsetzen.
+- Der Permission-Classifier blockt verkettete AWS-Aufrufe mit
+  Command-Substitution (Task -> ENI -> IP) und Multi-Region-Loops. Einzelne,
+  direkte Aufrufe mit --query gehen durch. Nicht dagegen ankämpfen, aufteilen.
+- retell/system-prompt.txt ist der Live-Prompt von Klinik 1 und wird byteweise
+  aus retell/system-prompt.template.txt + tenants/amityville-wellness.json
+  reproduziert (tests/unit/system-prompt.spec.ts). Änderst du das Template oder
+  die Tenant-Datei, musst du system-prompt.txt neu rendern:
+  npm run retell:agent -- --tenant amityville-wellness --env production
+- Der Renderer verweigert absichtlich viel: unaufgelöste Platzhalter, mutable
+  Image-Tags, REPLACE_WITH_*-Sentinels, eine Produktions-BUSINESS_NAME die nicht
+  der display_name der Klinik ist. Das sind Features, keine Bugs.
+- Klinik 2 (riverside-physio) ist fiktiv und nicht deploybar (Google-IDs sind
+  Platzhalter). Sie existiert, damit die Suite beweist, dass nichts
+  Klinikspezifisches mehr im Code steckt. Nicht löschen.
