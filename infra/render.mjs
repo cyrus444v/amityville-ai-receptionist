@@ -189,6 +189,54 @@ export function assertRenderedTaskDefinition(definition, envConfig, tenant = nul
   return definition;
 }
 
+/**
+ * Secrets Manager appends a six-character suffix to a secret's ARN when the
+ * secret is created, so a correct ARN cannot be derived from the secret's name
+ * alone. ECS requires the full ARN in secrets[].valueFrom; a suffix-less
+ * reference is authorised against a different resource string than the one the
+ * execution role grants, and the task then dies at startup with
+ * ResourceInitializationError instead of failing here at render time.
+ *
+ * The suffixes are account-specific facts, so they belong in the environment
+ * config alongside the other values that have to come from the real account.
+ * An environment that has not recorded them yet renders exactly as before,
+ * which keeps this change from reaching clinics that are not being deployed.
+ */
+export const SECRET_ARN_SUFFIX = /^[A-Za-z0-9]{6}$/;
+
+export function applySecretArnSuffixes(definition, envConfig) {
+  const suffixes = envConfig.secretArnSuffixes;
+  if (!suffixes) return definition;
+
+  const container = definition.containerDefinitions[0];
+  const carried = container.secrets.map((entry) => entry.name);
+
+  const unknown = Object.keys(suffixes).filter((name) => !carried.includes(name));
+  if (unknown.length > 0) {
+    throw new Error(`secretArnSuffixes names secrets this task definition does not carry: ${unknown.join(', ')}`);
+  }
+  const omitted = carried.filter((name) => !(name in suffixes));
+  if (omitted.length > 0) {
+    throw new Error(
+      `secretArnSuffixes is declared but omits ${omitted.join(', ')}. List every secret or remove the block: `
+      + 'a partly-suffixed set is exactly the failure this guard exists to prevent.',
+    );
+  }
+
+  for (const secret of container.secrets) {
+    const suffix = suffixes[secret.name];
+    if (!SECRET_ARN_SUFFIX.test(suffix)) {
+      throw new Error(
+        `secretArnSuffixes.${secret.name} must be the six-character suffix Secrets Manager assigned, not "${suffix}".`,
+      );
+    }
+    if (!secret.valueFrom.endsWith(`-${suffix}`)) {
+      secret.valueFrom = `${secret.valueFrom}-${suffix}`;
+    }
+  }
+  return definition;
+}
+
 export function renderTaskDefinition({ templateText, envConfig, imageTag, tenant }) {
   assertValidImageTag(imageTag);
   assertEnvironmentConfig(envConfig, tenant);
@@ -206,6 +254,7 @@ export function renderTaskDefinition({ templateText, envConfig, imageTag, tenant
   if (typeof envConfig.readonlyRootFilesystem === 'boolean') {
     container.readonlyRootFilesystem = envConfig.readonlyRootFilesystem;
   }
+  applySecretArnSuffixes(definition, envConfig);
   return assertRenderedTaskDefinition(definition, envConfig, tenant);
 }
 

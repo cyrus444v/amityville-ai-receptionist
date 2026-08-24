@@ -117,8 +117,21 @@ describe('production task definition', () => {
 });
 
 describe('staging isolation', () => {
+  // The guard is exercised against an injected sentinel rather than against the
+  // checked-in file: staging is configured now, so asserting on the file's
+  // contents would only re-test the previous state of the repository.
   it('refuses to render while operator placeholders remain', () => {
-    expect(() => render(envConfig('staging'))).toThrow(/operator placeholders/);
+    const config = stagingWithGoogleIds({ GOOGLE_CALENDAR_ID: 'REPLACE_WITH_STAGING_CALENDAR_ID' });
+    expect(() => render(config)).toThrow(/operator placeholders: GOOGLE_CALENDAR_ID/);
+  });
+
+  it('renders the checked-in staging config, so staging is actually deployable', () => {
+    const definition = render(envConfig('staging'));
+    const env = new Map(definition.containerDefinitions[0].environment
+      .map((entry: { name: string; value: string }) => [entry.name, entry.value]));
+    expect(env.get('COORDINATION_TABLE')).toBe('ai-receptionist-staging-coordination');
+    expect(env.get('GOOGLE_CALENDAR_ID')).not.toMatch(/^REPLACE_WITH_/);
+    expect(env.get('GOOGLE_SPREADSHEET_ID')).not.toMatch(/^REPLACE_WITH_/);
   });
 
   it('refuses to point staging at the production calendar', () => {
@@ -236,5 +249,39 @@ describe('staging isolation is derived, not remembered', () => {
   it('ignores an absent or empty production value rather than forbidding the empty string', () => {
     expect(mergeForbiddenValues({}, { GOOGLE_CALENDAR_ID: '' })).toEqual({});
     expect(mergeForbiddenValues({}, {})).toEqual({});
+  });
+});
+
+/**
+ * Secrets Manager assigns a six-character suffix at creation, so an ARN built
+ * from the secret's name alone is not the ARN the execution role grants. That
+ * mismatch is invisible until the task tries to start, which is the most
+ * expensive place to find it.
+ */
+describe('secret ARN suffixes', () => {
+  it('renders the full ARN that ECS requires', () => {
+    const container = render(stagingWithGoogleIds()).containerDefinitions[0];
+    expect(container.secrets).toHaveLength(REQUIRED_SECRET_NAMES.length);
+    for (const secret of container.secrets) {
+      expect(secret.valueFrom).toMatch(/-[A-Za-z0-9]{6}$/);
+    }
+  });
+
+  it('refuses a partly-suffixed set rather than emitting one bad reference', () => {
+    const config = stagingWithGoogleIds();
+    delete config.secretArnSuffixes.RESEND_API_KEY;
+    expect(() => render(config)).toThrow(/omits RESEND_API_KEY/);
+  });
+
+  it('rejects a suffix that is not the six characters Secrets Manager assigns', () => {
+    const config = stagingWithGoogleIds();
+    config.secretArnSuffixes.RESEND_API_KEY = 'nope';
+    expect(() => render(config)).toThrow(/six-character suffix/);
+  });
+
+  it('rejects a suffix for a secret the task definition does not carry', () => {
+    const config = stagingWithGoogleIds();
+    config.secretArnSuffixes.NOT_A_SECRET = 'abc123';
+    expect(() => render(config)).toThrow(/does not carry: NOT_A_SECRET/);
   });
 });
