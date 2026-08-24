@@ -41,6 +41,44 @@ function known(template: Template): Set<string> {
   ]);
 }
 
+/**
+ * ELB attribute lists (LoadBalancerAttributes, TargetGroupAttributes) type their
+ * Value as String. CloudFormation will coerce a Number-parameter Ref or a
+ * FindInMap onto an unquoted YAML boolean, so this is not about a rejected
+ * stack — it is about the templates declaring the type the property actually
+ * takes instead of relying on coercion. Resolve each value far enough to know
+ * what type it produces.
+ */
+function resolvesToString(value: unknown, template: Template): boolean {
+  if (typeof value === 'string') return true;
+  if (!value || typeof value !== 'object') return false;
+  const node = value as Record<string, any>;
+  if ('Fn::Sub' in node) return typeof node['Fn::Sub'] === 'string';
+  if ('Ref' in node) return (template.Parameters?.[node.Ref] as any)?.Type === 'String';
+  if ('Fn::FindInMap' in node) {
+    const [mapName, , key] = node['Fn::FindInMap'];
+    const map = (template.Mappings?.[mapName] ?? {}) as Record<string, Record<string, unknown>>;
+    const entries = Object.values(map);
+    return entries.length > 0 && entries.every((entry) => typeof entry[key] === 'string');
+  }
+  return false;
+}
+
+/** Every { Key, Value } pair under a property whose name ends in "Attributes". */
+function attributePairs(node: unknown, found: any[] = []): any[] {
+  if (Array.isArray(node)) {
+    for (const item of node) attributePairs(item, found);
+    return found;
+  }
+  if (node && typeof node === 'object') {
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (/Attributes$/.test(key) && Array.isArray(value)) found.push(...value);
+      else attributePairs(value, found);
+    }
+  }
+  return found;
+}
+
 /** Every name a Ref, Fn::GetAtt or Fn::Sub placeholder points at. */
 function referencedNames(node: unknown, found: string[] = []): string[] {
   if (Array.isArray(node)) {
@@ -88,6 +126,14 @@ describe.each([
 
   it('states plainly that it has never reached AWS', () => {
     expect((template as any).Description).toContain('NEVER SUBMITTED TO AWS');
+  });
+
+  it('gives every load balancer attribute a value that resolves to a string', () => {
+    const pairs = attributePairs(template.Resources);
+    expect(pairs.length).toBeGreaterThan(0);
+    for (const pair of pairs) {
+      expect(resolvesToString(pair.Value, template), `${pair.Key} does not resolve to a string`).toBe(true);
+    }
   });
 });
 
@@ -161,6 +207,17 @@ describe('one clinic per stack', () => {
 
   it('health-checks the one unauthenticated endpoint the app exposes', () => {
     expect(tenantService.Resources.TargetGroup.Properties.HealthCheckPath).toBe('/health');
+  });
+
+  it('creates the cluster before the service that runs in it', () => {
+    // A Ref to the ClusterName parameter is only a string: it would leave no
+    // edge in the dependency graph, so the service could be created first.
+    const cluster = tenantService.Resources.Service.Properties.Cluster;
+    expect(cluster['Fn::If']).toEqual([
+      'ShouldCreateCluster',
+      { Ref: 'Cluster' },
+      { Ref: 'ClusterName' },
+    ]);
   });
 
   it('rolls a bad deployment back on its own', () => {

@@ -482,7 +482,16 @@ Resources:
     Properties:
       ServiceName:
         Fn::Sub: '${ServiceName}-backend'
-      Cluster: { Ref: ClusterName }
+      # Referencing the resource, not the parameter, when this stack owns the
+      # cluster: a Ref to the parameter is just a string, so CloudFormation would
+      # see no edge between service and cluster and could create the service
+      # first. A run with CreateCluster=yes and a bootstrap task definition in
+      # one pass fails that way.
+      Cluster:
+        Fn::If:
+          - ShouldCreateCluster
+          - { Ref: Cluster }
+          - { Ref: ClusterName }
       TaskDefinition: { Ref: BootstrapTaskDefinitionArn }
       DesiredCount: { Ref: DesiredCount }
       LaunchType: FARGATE
