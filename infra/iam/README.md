@@ -45,6 +45,8 @@ general-purpose deploy policy.
 | `TaskAndDeployRoles` | the execution role, the task role and the GitHub deploy role. Scoped to `role/ai-receptionist-*`, so it cannot touch the pre-existing generic `ecsTaskRole`/`ecsTaskExecutionRole` or any unrelated role. |
 | `PassOnlyTheTaskRolesAndOnlyToEcs` | `iam:PassRole` is the one that turns role-creation into privilege escalation, so it is restricted to the two task roles **and** conditioned on `iam:PassedToService = ecs-tasks.amazonaws.com`. |
 | `GitHubOidcProvider` | the account-global OIDC provider, pinned to GitHub's exact provider ARN. |
+| `EcrAuthTokenIsAccountScoped` | `ecr:GetAuthorizationToken` takes no resource ARN; it is what `docker login` calls. |
+| `EcrPushTheBootstrapImage` | the first image has to be pushed by hand, because the service cannot be created without a task definition and the task definition cannot be registered without an image. Scoped to `repository/*-backend`. Every push after the first belongs to the GitHub OIDC deploy role the stack creates, which is why this is temporary too. |
 | `EcsClustersServicesAndTaskDefinitions` | the two new clusters, the service, and task-definition registration. `RegisterTaskDefinition` is account-scoped by the API. |
 | `CertificateForTheListener` | request and inspect the certificate for the clinic's hostname. ACM has no useful resource scoping for `RequestCertificate`. |
 
@@ -60,11 +62,12 @@ general-purpose deploy policy.
   role the stack creates, not to the deployer.
 - `s3:*`, `lambda:*`, `rds:*` and every other service neither template touches.
 
-## Six statements use `Resource: "*"`
+## Seven statements use `Resource: "*"`
 
 `CloudFormationAccountScopedCalls`, `NetworkingReadAndSecurityGroups`,
 `LoadBalancing`, `DiscoveryGapsFromPhaseBStepOne`,
-`EcsClustersServicesAndTaskDefinitions` and `CertificateForTheListener`. In each
+`EcrAuthTokenIsAccountScoped`, `EcsClustersServicesAndTaskDefinitions` and
+`CertificateForTheListener`. In each
 case that is because the AWS API rejects a resource ARN for those actions, or
 because the resource does not exist yet at the moment of the call — not because
 scoping was skipped for convenience. It is still real breadth: this policy can

@@ -194,6 +194,30 @@
       "Resource": "arn:aws:iam::668764275927:oidc-provider/token.actions.githubusercontent.com"
     },
     {
+      "Sid": "EcrAuthTokenIsAccountScoped",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrPushTheBootstrapImage",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:DescribeImages",
+        "ecr:ListImages"
+      ],
+      "Resource": "arn:aws:ecr:us-east-1:668764275927:repository/*-backend"
+    },
+    {
       "Sid": "EcsClustersServicesAndTaskDefinitions",
       "Effect": "Allow",
       "Action": [
