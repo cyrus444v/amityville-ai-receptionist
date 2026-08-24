@@ -5,3 +5,5 @@ dist
 infra/generated/
 harness/transcripts/
 retell/generated/
+
+.claude/settings.local.json

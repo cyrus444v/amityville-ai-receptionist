@@ -54,7 +54,7 @@
   },
   "api": {
     "production_host": "api.amityvillewellness.com",
-    "staging_host": "REPLACE_WITH_STAGING_HOST"
+    "staging_host": "api-staging.amityvillewellness.com"
   },
   "prompt": {
     "spoken_name": "Amityville Acupuncture & Wellness",

@@ -184,3 +184,9 @@ infrastructure build report, and the prompt that started this phase.
   `npm run eval:transcripts`. Keep both evals at 48/48; CI fails otherwise.
 - Nothing on `b449511` or `9ea0814` has had independent review. If Codex quota is
   back, a read-only review of `a5e2cbf..HEAD` is worth one pass.
+
+## Agent routing
+
+When a task is better suited to Claude Code, or would be more efficient there,
+tell the user to switch to Claude Code. The same applies in reverse: when a task
+is mechanical and repetitive, tell the user to hand it to the cheaper model.

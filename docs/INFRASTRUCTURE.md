@@ -133,6 +133,32 @@ Deploying either CloudFormation stack needs far more than this key has —
 `secretsmanager:CreateSecret`, `ecs:CreateService`. **Phase B steps 3 and 4 cannot
 run with this credential.**
 
+### Discovery completed (19 August 2026, as account root via CloudShell)
+
+The four calls the `aivance-deploy` key was denied were run as the account root
+identity (`arn:aws:iam::668764275927:root`) from AWS CloudShell:
+
+- `dynamodb list-tables` -> **no tables exist**. There is no
+  `ai-receptionist-coordination`; the stacks create the `*-coordination` tables
+  fresh, so there is nothing to migrate and the coordination-table cutover note
+  below does not apply to this first launch.
+- `secretsmanager list-secrets` -> exactly the two known old-schema secrets,
+  `ai-receptionist/GOOGLE_CREDENTIALS_BASE64` and `ai-receptionist/RESEND_API_KEY`.
+- `acm list-certificates` -> a certificate for `api.amityvillewellness.com`
+  already exists and is **ISSUED**
+  (`arn:aws:acm:us-east-1:668764275927:certificate/83bc0bfa-2a49-486b-bf8a-f8f56c6bdd8e`),
+  single-domain (SAN = `api.amityvillewellness.com` only), AMAZON_ISSUED, not yet
+  attached to any load balancer. It is reused for production. A separate staging
+  certificate for `api-staging.amityvillewellness.com` was requested
+  (`arn:aws:acm:us-east-1:668764275927:certificate/68ffef65-1b24-4006-90f0-e6973f0b4d55`,
+  DNS validation via GoDaddy).
+
+Because the working identity is account root, the Phase-B provisioning policy in
+`infra/iam/README.md` was **not** attached: root already exceeds it, so there is
+no temporary elevation to detach afterwards. The exposed `aivance-deploy` access
+key `AKIAZXNLVATL5LCGWPXQ` was **deactivated and then deleted**; that user now has
+no access keys.
+
 ### Decisions taken on these findings (19 August 2026)
 
 1. **Two new clusters**, `ai-receptionist-staging` and `ai-receptionist-production`.
@@ -218,7 +244,97 @@ mistake — a second clinic's files copied from the first and not fully edited:
 
 `tests/infra/task-definition.spec.ts` covers each of those failure modes.
 
+## Offline template review (24 August 2026)
+
+Neither template has been submitted to AWS yet, so this is what a close read
+found before spending a round-trip on the account. It does not replace
+`aws cloudformation validate-template` — it only means the obvious rejections are
+already gone.
+
+**Two changes made**, one of them smaller than it first looked.
+
+- `shared-alb.yml` set `idle_timeout.timeout_seconds` from `Ref: IdleTimeoutSeconds`,
+  a `Number` parameter, and `deletion_protection.enabled` from a `FindInMap` onto an
+  unquoted YAML boolean, where the property is typed `String`. Both are now explicit
+  strings (`Fn::Sub`, quoted mapping values). **This is hardening, not a bug fix, and
+  the account proves it:** the staging ALB stack was created from the pre-fix template
+  on 19 August 2026 and CloudFormation accepted it. The live attributes read back
+  `idle_timeout.timeout_seconds = 60` and `deletion_protection.enabled = false`, so
+  CloudFormation coerced both. The explicit strings say what the property actually
+  wants, and `tests/infra/cloudformation.spec.ts` keeps them from drifting back.
+- `tenant-service.yml` gave the ECS service `Cluster: { Ref: ClusterName }` — a
+  parameter, so a plain string. With `CreateCluster=yes` that leaves no edge in the
+  dependency graph between the cluster and the service, and a single pass that both
+  creates the cluster and has a `BootstrapTaskDefinitionArn` can attempt the service
+  first. It is now `Fn::If [ShouldCreateCluster, Ref Cluster, Ref ClusterName]`, so
+  the dependency exists exactly when this stack owns the cluster. This one never
+  fired in the staging run only because pass 1 was deliberately made with an empty
+  `BootstrapTaskDefinitionArn`, which skips the service resource entirely.
+
+**Watch-items.** No code change; each is a judgement call at deploy time.
+
+1. **Certificate used twice.** If the shared listener's `DefaultCertificateArn` is
+   the same ARN a clinic then attaches via `ListenerCertificate`, the second
+   attachment is at best a no-op. For a single-clinic environment, consider giving
+   the listener the clinic certificate as its default and skipping the per-tenant
+   one, or watch that resource specifically in the first staging run.
+2. **Secret ARNs were partial — and it did not work.** This was listed here as a
+   tolerable sharp edge on the theory that Secrets Manager resolves partial ARNs.
+   The first staging deploy disproved it: task definition revision `:1` built
+   `…:secret:ai-receptionist/<env>/<NAME>` without the six-character random suffix
+   and the task could not start. `infra/render.mjs` now appends the real suffixes
+   via `applySecretArnSuffixes()`, read from a `secretArnSuffixes` block in the
+   environment file, so the rendered `valueFrom` matches the execution role's
+   `read-service-secrets` resources character for character. Staging revision `:2`
+   carries the full ARNs; **revision `:1` is broken and must never be referenced.**
+
+   The guard is opt-in per environment. `amityville-wellness.production` and both
+   `riverside-physio` environments still render suffix-less ARNs and will fail the
+   same way on their first deploy. Record each environment's real suffixes (from the
+   stack's `*SecretArn` outputs) before deploying it.
+3. **No ECR repository in the tenant stack.** It creates everything else a clinic
+   owns, but the image repository is assumed to exist. True for clinic #1
+   (`ai-receptionist-backend`); a second real clinic needs its repository created
+   before its first deploy, or the `DeployRole`'s scoped ECR permission points at
+   nothing.
+4. **Target group name ceiling.** `${ServiceName}-${EnvironmentName}-tg` must stay
+   within 32 characters. `ai-receptionist-production-tg` is 29. `ServiceName`'s own
+   pattern allows 41, so a long clinic slug fails at create time, not at validate
+   time.
+5. `containerInsights: enabled` on each cluster is a real CloudWatch line item for a
+   service that is idle most of the day.
+6. The GitHub OIDC `ThumbprintList` is the legacy value. IAM no longer verifies
+   thumbprints for `token.actions.githubusercontent.com`, so it is harmless — but it
+   is not doing anything either.
+
+**Names verified consistent across the templates, the task definition and the
+workflow.** `SERVICE` is `ai-receptionist` in both `amityville-wellness` environment
+files, which matches the `ServiceName` parameter default, so the roles, the
+`/ecs/ai-receptionist-<env>` log group, the `ai-receptionist/<env>/*` secret paths
+and the `ai-receptionist-<env>-coordination` table the task definition references are
+exactly the ones the stack creates. The container name `ai-receptionist-backend`
+matches both `CONTAINER_NAME` in `deploy.yml` and `LoadBalancers.ContainerName` in the
+stack; the ECR repository matches `ECR_REPOSITORY` and the `DeployRole`'s scoped
+resource. Both deploy jobs declare `environment: staging|production`, which is what
+the OIDC trust policy's `sub` claim requires — without it the role assumption fails.
+The new target group names do not collide with the orphaned `ai-receptionist-tg`, so
+the cleanup can happen before or after the launch.
+
 ## Deploying
+
+**Build the image for `linux/amd64`.** Fargate runs amd64 here, and a plain
+`docker build` on an Apple Silicon machine produces an arm64-only manifest that ECS
+refuses with `CannotPullContainerError: image Manifest does not contain descriptor
+matching platform 'linux/amd64'`. The task never starts and the reason looks nothing
+like a build problem. Always pass the flag:
+
+```bash
+docker build --platform linux/amd64 -t <registry>/<svc>-backend:<sha> .
+```
+
+The GitHub Actions runner is amd64, so the deploy workflow is unaffected — this bites
+only when bootstrapping by hand from a developer machine.
+
 
 ```bash
 # once per environment
