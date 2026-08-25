@@ -339,4 +339,48 @@ describe('fail-closed in production', () => {
     const guard = await guardUnder({ NODE_ENV: 'test', TENANT_SLUG: 'amityville-wellness', TENANT_CONFIG_JSON: undefined });
     expect(() => guard()).not.toThrow();
   });
+
+  // Migrating off Retell renames these variables, and both spellings have to be
+  // live at the same time: the task definition currently in the account sets
+  // RETELL_*, while the telephony adapter that replaces it sets TELEPHONY_*.
+  // Dropping either side breaks a running deployment rather than a test.
+  it('accepts the provider-neutral webhook secret', async () => {
+    const guard = await guardUnder({
+      ...longSecrets,
+      RETELL_WEBHOOK_SECRET: undefined,
+      TELEPHONY_WEBHOOK_SECRET: 'd'.repeat(48),
+      TENANT_CONFIG_JSON: referenceText,
+      TENANT_SLUG: undefined,
+    });
+    expect(() => guard()).not.toThrow();
+  });
+
+  it('still accepts the RETELL_ spelling, so the deployed task keeps booting', async () => {
+    const guard = await guardUnder({
+      ...longSecrets,
+      TELEPHONY_WEBHOOK_SECRET: undefined,
+      TENANT_CONFIG_JSON: referenceText,
+      TENANT_SLUG: undefined,
+    });
+    expect(() => guard()).not.toThrow();
+  });
+
+  it('prefers the provider-neutral spelling over the fallback', async () => {
+    process.env.RETELL_WEBHOOK_SECRET = 'old'.repeat(16);
+    process.env.TELEPHONY_WEBHOOK_SECRET = 'new'.repeat(16);
+    process.env.RETELL_CALLER_PHONE_HEADER = 'x-retell-caller-phone';
+    process.env.TELEPHONY_CALLER_PHONE_HEADER = 'x-telephony-caller';
+    vi.resetModules();
+    const { config } = await import('../../src/config');
+    expect(config.security.webhookSecret).toBe('new'.repeat(16));
+    expect(config.security.callerPhoneHeader).toBe('x-telephony-caller');
+  });
+
+  it('falls back to the Retell header names while Retell is still the transport', async () => {
+    process.env.RETELL_CALL_ID_HEADER = 'x-retell-call-id';
+    delete process.env.TELEPHONY_CALL_ID_HEADER;
+    vi.resetModules();
+    const { config } = await import('../../src/config');
+    expect(config.security.callIdHeader).toBe('x-retell-call-id');
+  });
 });

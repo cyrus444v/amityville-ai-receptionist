@@ -14,7 +14,7 @@ export function verifyRetellSignature(
   const match = /^v=(\d+),d=([a-f0-9]{64})$/i.exec(signature);
   if (!match || !secret) return false;
   const timestamp = Number(match[1]);
-  if (!Number.isSafeInteger(timestamp) || Math.abs(now - timestamp) > config.security.retellWebhookToleranceMs) return false;
+  if (!Number.isSafeInteger(timestamp) || Math.abs(now - timestamp) > config.security.webhookToleranceMs) return false;
 
   const expected = crypto.createHmac('sha256', secret).update(rawBody + match[1], 'utf8').digest('hex');
   const suppliedBuffer = Buffer.from(match[2].toLowerCase(), 'hex');
@@ -25,7 +25,7 @@ export function verifyRetellSignature(
 router.post('/retell/webhook', (req: Request, res: Response) => {
   const rawBody = (req as Request & { rawBody?: Buffer }).rawBody?.toString('utf8') ?? '';
   const signature = req.get('x-retell-signature') ?? '';
-  if (!verifyRetellSignature(rawBody, signature, config.security.retellWebhookSecret)) {
+  if (!verifyRetellSignature(rawBody, signature, config.security.webhookSecret)) {
     return res.status(401).json({ success: false, error: 'INVALID_RETELL_SIGNATURE' });
   }
 
