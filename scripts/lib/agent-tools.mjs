@@ -1,10 +1,10 @@
 /**
- * Shared Retell tool-config handling for scripts/retell-tools-for.mjs and
- * scripts/render-retell-agent.mjs.
+ * Shared Retell tool-config handling for scripts/agent-tools-for.mjs and
+ * scripts/render-agent.mjs.
  *
- * The committed retell/tools.json always stays pointed at tenant #1's production
+ * The committed agent/tools.json always stays pointed at tenant #1's production
  * host, because the static eval enforces an allowlisted production host. Both
- * scripts write to retell/generated/ (gitignored) instead, so a tunnel URL or an
+ * scripts write to agent/generated/ (gitignored) instead, so a tunnel URL or an
  * inlined secret can never be committed by accident.
  */
 
@@ -32,7 +32,7 @@ export function parseHttpsBase(baseUrl) {
 }
 
 export function loadTools(repoRoot) {
-  return JSON.parse(readFileSync(resolve(repoRoot, 'retell/tools.json'), 'utf8'));
+  return JSON.parse(readFileSync(resolve(repoRoot, 'agent/tools.json'), 'utf8'));
 }
 
 /**

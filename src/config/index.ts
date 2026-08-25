@@ -59,19 +59,10 @@ export const config = {
     coordinationRegion: (process.env.COORDINATION_REGION || process.env.AWS_REGION || 'us-east-1').trim(),
     appointmentTokenSecret: (process.env.APPOINTMENT_TOKEN_SECRET || '').trim(),
     appointmentTokenTtlMs: positiveInteger(process.env.APPOINTMENT_TOKEN_TTL_MS, 10 * 60_000),
-    // Provider-neutral names. The RETELL_* spellings stay accepted because the
-    // task definition currently deployed sets them: dropping the fallback would
-    // stop the running container from booting at the next deploy, before any
-    // replacement telephony adapter exists. The header defaults still name
-    // Retell's headers for the same reason — the adapter that replaces it sets
-    // TELEPHONY_* explicitly rather than relying on a default.
-    callerPhoneHeader: (process.env.TELEPHONY_CALLER_PHONE_HEADER || process.env.RETELL_CALLER_PHONE_HEADER || 'x-retell-caller-phone').toLowerCase(),
-    callIdHeader: (process.env.TELEPHONY_CALL_ID_HEADER || process.env.RETELL_CALL_ID_HEADER || 'x-retell-call-id').toLowerCase(),
-    webhookSecret: (process.env.TELEPHONY_WEBHOOK_SECRET || process.env.RETELL_WEBHOOK_SECRET || '').trim(),
-    webhookToleranceMs: positiveInteger(
-      process.env.TELEPHONY_WEBHOOK_TOLERANCE_MS || process.env.RETELL_WEBHOOK_TOLERANCE_MS,
-      5 * 60_000,
-    ),
+    // The telephony layer is ours. These headers are set by the call handler
+    // this service owns, not by a vendor, so the names carry no vendor in them.
+    callerPhoneHeader: (process.env.TELEPHONY_CALLER_PHONE_HEADER || 'x-caller-phone').toLowerCase(),
+    callIdHeader: (process.env.TELEPHONY_CALL_ID_HEADER || 'x-call-id').toLowerCase(),
   },
 
   // The clinic's identity comes from its tenant configuration. The environment
@@ -109,7 +100,6 @@ export function assertProductionSecurityConfig(): void {
   if (process.env.NODE_ENV !== 'production') return;
   if (config.security.toolAuthSecret.length < 32) throw new Error('TOOL_AUTH_SECRET must be set to at least 32 characters when NODE_ENV=production.');
   if (config.security.appointmentTokenSecret.length < 32) throw new Error('APPOINTMENT_TOKEN_SECRET must be set to at least 32 characters when NODE_ENV=production.');
-  if (config.security.webhookSecret.length < 32) throw new Error('TELEPHONY_WEBHOOK_SECRET (or the accepted RETELL_WEBHOOK_SECRET fallback) must be set to at least 32 characters when NODE_ENV=production.');
   if (!config.security.coordinationTable) throw new Error('COORDINATION_TABLE must be set when NODE_ENV=production.');
   if (config.security.allowedOrigins.includes('*')) throw new Error('ALLOWED_ORIGINS must not contain * when NODE_ENV=production.');
   // The container image carries no tenant files (the Dockerfile ships dist/

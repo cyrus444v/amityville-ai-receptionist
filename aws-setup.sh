@@ -89,7 +89,7 @@ aws secretsmanager create-secret \
     --secret-string "file://$GOOGLE_CREDENTIALS_BASE64_FILE" \
     --region "$REGION"
 
-for SECRET_NAME in APPOINTMENT_TOKEN_SECRET RETELL_WEBHOOK_SECRET; do
+for SECRET_NAME in APPOINTMENT_TOKEN_SECRET; do
   FILE_VARIABLE="${SECRET_NAME}_FILE"
   SECRET_FILE="${!FILE_VARIABLE:-}"
   if [[ -z "$SECRET_FILE" || ! -f "$SECRET_FILE" || ! -r "$SECRET_FILE" ]]; then

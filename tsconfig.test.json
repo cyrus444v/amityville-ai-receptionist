@@ -7,6 +7,6 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["src/**/*", "tests/**/*", "harness/**/*", "infra/render.mjs", "retell/render-prompt.mjs", "scripts/lib/**/*.mjs", "lib/**/*.mjs"],
+  "include": ["src/**/*", "tests/**/*", "harness/**/*", "infra/render.mjs", "agent/render-prompt.mjs", "scripts/lib/**/*.mjs", "lib/**/*.mjs"],
   "exclude": ["node_modules", "dist", "infra/generated"]
 }

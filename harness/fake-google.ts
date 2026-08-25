@@ -5,7 +5,7 @@
  *
  * These exist so the full request path — HTTP, tool auth, rate limiting,
  * idempotency, validation, booking service, coordination store — can be driven
- * end to end offline. Nothing here contacts Google, Retell, AWS, or any
+ * end to end offline. Nothing here contacts Google, AWS, or any
  * network. The column layout is imported from the real persistence module so
  * the fakes cannot drift from production's schema.
  */

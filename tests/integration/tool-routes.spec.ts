@@ -78,7 +78,7 @@ describe('public voice-tool boundary', () => {
     },
   );
 
-  it('protects get_current_date because it is a Retell tool', async () => {
+  it('protects get_current_date because it is a voice tool', async () => {
     await request(createApp()).get('/current-date').expect(401);
     await request(createApp()).get('/current-date').set(auth).expect(200);
   });
@@ -109,7 +109,7 @@ describe('public voice-tool boundary', () => {
 
     const app = createApp();
     const selected = await request(app).post('/find-appointment').set(auth)
-      .set('x-retell-caller-phone', '+1 (555) 123-4567')
+      .set('x-caller-phone', '+1 (555) 123-4567')
       .send({ phone: '(555) 123-4567' }).expect(200);
     expect(selected.body.selection_required).toBe(true);
     expect(selected.body.appointment_token).toEqual(expect.any(String));
@@ -117,7 +117,7 @@ describe('public voice-tool boundary', () => {
     expect(selected.body).not.toHaveProperty('caller_name');
 
     const disclosed = await request(app).post('/find-appointment').set(auth)
-      .set('x-retell-caller-phone', '+1 (555) 123-4567')
+      .set('x-caller-phone', '+1 (555) 123-4567')
       .send({ phone: '(555) 123-4567', appointment_token: selected.body.appointment_token }).expect(200);
     expect(disclosed.body.selection_required).toBe(false);
     expect(disclosed.body.service).toBe('Acupuncture');
@@ -136,7 +136,7 @@ describe('public voice-tool boundary', () => {
     await request(createApp()).post('/find-appointment').set(auth)
       .send({ phone: '5551234567' }).expect(403)
       .expect((response) => expect(response.body).not.toHaveProperty('appointment_id'));
-    await request(createApp()).post('/find-appointment').set(auth).set('x-retell-caller-phone', '5551234567')
+    await request(createApp()).post('/find-appointment').set(auth).set('x-caller-phone', '5551234567')
       .send({ phone: '5551234567' }).expect(409)
       .expect((response) => {
         expect(response.body.error).toBe('AMBIGUOUS_APPOINTMENT');
@@ -177,8 +177,8 @@ describe('public voice-tool boundary', () => {
       .expect({ success: false, error: 'IDEMPOTENCY_KEY_REUSED' });
   });
 
-  it('accepts every declared Retell tool contract without network access', async () => {
-    const definitions = JSON.parse(fs.readFileSync(path.resolve('retell/tools.json'), 'utf8')) as Array<{
+  it('accepts every declared voice-tool contract without network access', async () => {
+    const definitions = JSON.parse(fs.readFileSync(path.resolve('agent/tools.json'), 'utf8')) as Array<{
       name: string;
       parameters: { required: string[] };
     }>;
@@ -200,19 +200,9 @@ describe('public voice-tool boundary', () => {
       for (const required of tool.parameters.required) expect(call.payload).toHaveProperty(required);
       const pending = call.method === 'get'
         ? request(app).get(call.route).set(auth)
-        : request(app).post(call.route).set(auth).set('x-retell-caller-phone', '5551234567').send(call.payload);
+        : request(app).post(call.route).set(auth).set('x-caller-phone', '5551234567').send(call.payload);
       await pending.expect(200);
     }
   });
 
-  it('verifies Retell webhook signatures against the exact raw body', async () => {
-    const body = JSON.stringify({ event: 'call_ended', call: { call_id: 'fixture-call' } });
-    const timestamp = Date.now();
-    const digest = crypto.createHmac('sha256', 'fixture-retell-webhook-secret')
-      .update(body + timestamp).digest('hex');
-    await request(createApp()).post('/retell/webhook').set('Content-Type', 'application/json')
-      .set('x-retell-signature', `v=${timestamp},d=${digest}`).send(body).expect(204);
-    await request(createApp()).post('/retell/webhook').set('Content-Type', 'application/json')
-      .set('x-retell-signature', `v=${timestamp},d=${'0'.repeat(64)}`).send(body).expect(401);
-  });
 });

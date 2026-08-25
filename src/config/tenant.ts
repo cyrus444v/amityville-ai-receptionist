@@ -102,8 +102,8 @@ function isResolvableTimezone(timezone: string): boolean {
 }
 
 /**
- * The clinic-authored parts of the Retell system prompt. The template in
- * retell/system-prompt.template.txt holds the reusable call machinery; these are
+ * The clinic-authored parts of the agent system prompt. The template in
+ * agent/system-prompt.template.txt holds the reusable call machinery; these are
  * the sections a clinic writes for itself, plus the names it is known by.
  *
  * Multi-line sections are arrays of lines so they stay readable in the tenant

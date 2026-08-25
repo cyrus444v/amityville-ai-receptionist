@@ -1,5 +1,5 @@
 /**
- * The committed retell/system-prompt.txt is tenant #1's live agent prompt: it is
+ * The committed agent/system-prompt.txt is tenant #1's live agent prompt: it is
  * what the static eval checks its invariants against, and what a real caller
  * hears the effect of. Templating it is only safe if the template plus the
  * tenant file reproduce it exactly, so that is asserted byte-for-byte.
@@ -13,14 +13,14 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-// Plain ESM, shared with scripts/render-retell-agent.mjs.
-import { formatSpokenTime, renderBusinessHours, renderSystemPrompt } from '../../retell/render-prompt.mjs';
+// Plain ESM, shared with scripts/render-agent.mjs.
+import { formatSpokenTime, renderBusinessHours, renderSystemPrompt } from '../../agent/render-prompt.mjs';
 import { tenant } from '../../src/config/tenant';
 import { checkAvailability } from '../../src/services/booking';
 
 const repoRoot = resolve(__dirname, '../..');
-const templateText = readFileSync(resolve(repoRoot, 'retell/system-prompt.template.txt'), 'utf8');
-const committedPrompt = readFileSync(resolve(repoRoot, 'retell/system-prompt.txt'), 'utf8');
+const templateText = readFileSync(resolve(repoRoot, 'agent/system-prompt.template.txt'), 'utf8');
+const committedPrompt = readFileSync(resolve(repoRoot, 'agent/system-prompt.txt'), 'utf8');
 
 describe('the templated prompt reproduces the live prompt', () => {
   const rendered: string = renderSystemPrompt({ templateText, tenant });

@@ -3,7 +3,7 @@
  *
  * Boots the real Express app with the in-memory Google doubles injected by
  * local-fakes-preload.cjs, seeds a couple of demo appointments, and prints
- * everything needed to point a live Retell agent at this process.
+ * everything needed to point a voice frontend at this process.
  *
  * The point: you can make a real phone call, hear the real agent, and watch real
  * tool calls land — while no calendar, spreadsheet, mailbox or AWS resource is
@@ -48,7 +48,6 @@ function ephemeral(name: string): string {
 process.env.NODE_ENV ??= 'development';
 const toolSecret = ephemeral('TOOL_AUTH_SECRET');
 ephemeral('APPOINTMENT_TOKEN_SECRET');
-const webhookSecret = ephemeral('RETELL_WEBHOOK_SECRET');
 process.env.RATE_LIMIT_MAX ??= '240';
 
 /** dayjs day-of-week index for each tenant day key. */
@@ -124,7 +123,7 @@ async function main(): Promise<void> {
   const demoId = await seedDemo();
   const inner = createApp();
 
-  // Outer shell only observes; it never parses the body, so the Retell webhook
+  // Outer shell only observes; it never parses the body, so a future webhook
   // still sees the exact raw bytes it needs for signature verification.
   const outer = express();
   outer.use((req, res, next) => {
@@ -173,12 +172,11 @@ async function main(): Promise<void> {
     console.log(`  Public health check  http://localhost:${PORT}/health`);
     console.log(`  Reset state          curl -X POST http://localhost:${PORT}/__local/reset`);
     console.log('');
-    console.log('  Retell custom-tool headers (paste as agent dynamic variables):');
+    console.log('  Voice-tool headers the call handler must send:');
     console.log(`    x-tool-auth             ${toolSecret}`);
-    console.log('    x-retell-call-id        {{call_id}}');
-    console.log('    x-retell-caller-phone   {{user_number}}');
+    console.log('    x-call-id        <per-call id>');
+    console.log('    x-caller-phone   <caller number>');
     console.log('');
-    console.log(`  Retell webhook secret   ${webhookSecret}`);
     console.log('  (both regenerate on every boot — they are throwaway dev values)');
     console.log('');
     console.log('  Seeded demo data for reschedule/cancel flows:');
@@ -189,7 +187,7 @@ async function main(): Promise<void> {
     console.log(`  ${demoDayKey.charAt(0).toUpperCase() + demoDayKey.slice(1)} hours: ${demoHours.open}-${demoHours.close}`);
     console.log(`  Bookable same day: ${bookableHours.filter((hour) => hour !== demoTime).join(', ')}`);
     console.log('');
-    console.log(`  npm run local:check -- --secret ${toolSecret} --webhook-secret ${webhookSecret}`);
+    console.log(`  npm run local:check -- --secret ${toolSecret}`);
     console.log(`${line}\n`);
     /* eslint-enable no-console */
   });

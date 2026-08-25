@@ -4,6 +4,6 @@ dist
 
 infra/generated/
 harness/transcripts/
-retell/generated/
+agent/generated/
 
 .claude/settings.local.json

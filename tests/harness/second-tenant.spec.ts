@@ -234,7 +234,7 @@ describe('a second clinic, configured only by a tenant file', () => {
 
     const otherCaller = await call.tool('find_appointment',
       { phone: CALLER },
-      { headers: { 'x-retell-caller-phone': '+19995550000' } });
+      { headers: { 'x-caller-phone': '+19995550000' } });
     expect(otherCaller.status).toBe(403);
   });
 
@@ -257,8 +257,8 @@ describe('a second clinic, configured only by a tenant file', () => {
 
   it('renders a system prompt with no trace of clinic #1', async () => {
     const { readFileSync } = await import('node:fs');
-    const { renderSystemPrompt } = await import('../../retell/render-prompt.mjs');
-    const templateText = readFileSync(resolve(__dirname, '../../retell/system-prompt.template.txt'), 'utf8');
+    const { renderSystemPrompt } = await import('../../agent/render-prompt.mjs');
+    const templateText = readFileSync(resolve(__dirname, '../../agent/system-prompt.template.txt'), 'utf8');
     const tenant = JSON.parse(readFileSync(SECOND_TENANT, 'utf8'));
     const prompt: string = renderSystemPrompt({ templateText, tenant });
 

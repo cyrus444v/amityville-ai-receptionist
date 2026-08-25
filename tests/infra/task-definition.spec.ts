@@ -6,6 +6,8 @@
  * render-time error with a test behind it.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   REQUIRED_SECRET_NAMES,
@@ -81,7 +83,7 @@ describe('production task definition', () => {
   it('wires every security variable the runtime config reads', () => {
     for (const name of [
       'TOOL_AUTH_HEADER', 'TOOL_AUTH_VERSION', 'APPOINTMENT_TOKEN_TTL_MS',
-      'RETELL_CALLER_PHONE_HEADER', 'RETELL_CALL_ID_HEADER', 'RETELL_WEBHOOK_TOLERANCE_MS',
+      'TELEPHONY_CALLER_PHONE_HEADER', 'TELEPHONY_CALL_ID_HEADER',
       'ALLOWED_ORIGINS', 'REQUEST_BODY_LIMIT', 'RATE_LIMIT_WINDOW_MS', 'RATE_LIMIT_MAX',
       'IDEMPOTENCY_TTL_MS', 'TRUST_PROXY_HOPS', 'COORDINATION_TABLE', 'COORDINATION_REGION',
     ]) {
@@ -231,10 +233,25 @@ describe('tenant wiring', () => {
 
 describe('staging isolation is derived, not remembered', () => {
   it('forbids the production Google resources even when staging does not list them', () => {
-    const config = loadEnvironment('staging', TENANT);
-    expect(config.forbiddenValues.GOOGLE_CALENDAR_ID).toContain('cyrus.lang1@gmail.com');
-    expect(config.forbiddenValues.GOOGLE_SPREADSHEET_ID)
-      .toContain('1Nn7nMjzC0SkqP2PcjE69i_J-tmGiDUsXyCIpSjCDTjs');
+    // Read both sides from disk rather than hardcoding either. A literal here
+    // goes quietly vacuous the day production moves to a different calendar:
+    // the staging file happens to name the old one too, so the assertion keeps
+    // passing while testing nothing about derivation.
+    const declared = JSON.parse(
+      readFileSync(join('infra', 'environments', environmentFileName(TENANT, 'staging')), 'utf8'),
+    ).forbiddenValues ?? {};
+    const live = loadEnvironment('production', TENANT).values;
+    const derived = loadEnvironment('staging', TENANT).forbiddenValues;
+
+    for (const key of ['GOOGLE_CALENDAR_ID', 'GOOGLE_SPREADSHEET_ID']) {
+      expect(derived[key]).toContain(live[key]);
+    }
+    // At least one production resource must be absent from the staging file,
+    // or nothing above proves the merge ran.
+    expect(
+      ['GOOGLE_CALENDAR_ID', 'GOOGLE_SPREADSHEET_ID']
+        .some((key) => !(declared[key] ?? []).includes(live[key])),
+    ).toBe(true);
   });
 
   it('unions what the file declares with what production actually uses', () => {

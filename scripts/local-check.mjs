@@ -22,7 +22,6 @@ function arg(name, fallback) {
 
 const base = (arg('base', process.env.LOCAL_BASE_URL ?? 'http://localhost:3001')).replace(/\/+$/, '');
 const toolSecret = arg('secret', process.env.TOOL_AUTH_SECRET);
-const webhookSecret = arg('webhook-secret', process.env.RETELL_WEBHOOK_SECRET);
 const caller = arg('caller', process.env.DEMO_CALLER_PHONE ?? '+16315550123');
 
 if (!toolSecret) {
@@ -47,8 +46,8 @@ async function call(path, { method = 'GET', body, headers = {}, auth = true, raw
   const merged = { 'content-type': 'application/json', ...headers };
   if (auth) {
     merged['x-tool-auth'] = toolSecret;
-    merged['x-retell-call-id'] = headers['x-retell-call-id'] ?? 'local-check';
-    merged['x-retell-caller-phone'] = headers['x-retell-caller-phone'] ?? caller;
+    merged['x-call-id'] = headers['x-call-id'] ?? 'local-check';
+    merged['x-caller-phone'] = headers['x-caller-phone'] ?? caller;
   }
   for (const [key, value] of Object.entries(merged)) if (value === undefined) delete merged[key];
   const response = await fetch(`${base}${path}`, {
@@ -68,37 +67,8 @@ record('protected tool rejects anonymous', (await call('/current-date', { auth: 
 record('protected tool accepts the credential', (await call('/current-date')).status === 200);
 record(
   'lookup rejects a caller number that does not match',
-  (await call('/find-appointment', { method: 'POST', body: { phone: caller }, headers: { 'x-retell-caller-phone': '+19995550000' } })).status === 403,
+  (await call('/find-appointment', { method: 'POST', body: { phone: caller }, headers: { 'x-caller-phone': '+19995550000' } })).status === 403,
 );
-
-// --- webhook signature ------------------------------------------------------
-{
-  const unsigned = await call('/retell/webhook', { method: 'POST', auth: false, body: { event: 'call_ended' } });
-  record('webhook rejects an unsigned body', unsigned.status === 401, `got ${unsigned.status}`);
-
-  if (webhookSecret) {
-    const payload = JSON.stringify({ event: 'call_ended', call_id: 'local-check' });
-    const timestamp = String(Date.now());
-    const digest = crypto.createHmac('sha256', webhookSecret).update(payload + timestamp, 'utf8').digest('hex');
-    const signed = await call('/retell/webhook', {
-      method: 'POST',
-      auth: false,
-      raw: payload,
-      headers: { 'x-retell-signature': `v=${timestamp},d=${digest}` },
-    });
-    record('webhook accepts a correctly signed body', signed.status === 204, `got ${signed.status}`);
-
-    const tampered = await call('/retell/webhook', {
-      method: 'POST',
-      auth: false,
-      raw: `${payload} `,
-      headers: { 'x-retell-signature': `v=${timestamp},d=${digest}` },
-    });
-    record('webhook rejects a body altered after signing', tampered.status === 401, `got ${tampered.status}`);
-  } else {
-    console.log('skip  webhook signature round-trip (pass --webhook-secret to enable)');
-  }
-}
 
 // --- booking flow -----------------------------------------------------------
 const today = await call('/current-date');
@@ -192,7 +162,7 @@ if (!bookingDate) {
 
   const stolen = await call('/reschedule-appointment', {
     method: 'POST',
-    headers: { 'x-retell-caller-phone': '+19995550000' },
+    headers: { 'x-caller-phone': '+19995550000' },
     body: { appointment_id: details.body.appointment_id, phone: caller, appointment_token: token, new_date: bookingDate, new_time: thirdSlot },
   });
   record('reschedule from another caller is refused', stolen.status === 404 || stolen.status === 403);

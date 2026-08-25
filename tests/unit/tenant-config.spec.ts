@@ -305,7 +305,6 @@ describe('fail-closed in production', () => {
     NODE_ENV: 'production',
     TOOL_AUTH_SECRET: 'a'.repeat(48),
     APPOINTMENT_TOKEN_SECRET: 'b'.repeat(48),
-    RETELL_WEBHOOK_SECRET: 'c'.repeat(48),
     COORDINATION_TABLE: 'test-production-coordination',
     ALLOWED_ORIGINS: '',
   };
@@ -340,47 +339,24 @@ describe('fail-closed in production', () => {
     expect(() => guard()).not.toThrow();
   });
 
-  // Migrating off Retell renames these variables, and both spellings have to be
-  // live at the same time: the task definition currently in the account sets
-  // RETELL_*, while the telephony adapter that replaces it sets TELEPHONY_*.
-  // Dropping either side breaks a running deployment rather than a test.
-  it('accepts the provider-neutral webhook secret', async () => {
-    const guard = await guardUnder({
-      ...longSecrets,
-      RETELL_WEBHOOK_SECRET: undefined,
-      TELEPHONY_WEBHOOK_SECRET: 'd'.repeat(48),
-      TENANT_CONFIG_JSON: referenceText,
-      TENANT_SLUG: undefined,
-    });
-    expect(() => guard()).not.toThrow();
-  });
-
-  it('still accepts the RETELL_ spelling, so the deployed task keeps booting', async () => {
-    const guard = await guardUnder({
-      ...longSecrets,
-      TELEPHONY_WEBHOOK_SECRET: undefined,
-      TENANT_CONFIG_JSON: referenceText,
-      TENANT_SLUG: undefined,
-    });
-    expect(() => guard()).not.toThrow();
-  });
-
-  it('prefers the provider-neutral spelling over the fallback', async () => {
-    process.env.RETELL_WEBHOOK_SECRET = 'old'.repeat(16);
-    process.env.TELEPHONY_WEBHOOK_SECRET = 'new'.repeat(16);
-    process.env.RETELL_CALLER_PHONE_HEADER = 'x-retell-caller-phone';
+  // The call handler this service owns sets these headers, so the names are
+  // ours to choose. The environment variables stay as overrides for a
+  // deployment that needs a different spelling; the defaults carry no vendor.
+  it('honours an explicit telephony header override', async () => {
     process.env.TELEPHONY_CALLER_PHONE_HEADER = 'x-telephony-caller';
+    process.env.TELEPHONY_CALL_ID_HEADER = 'x-telephony-call';
     vi.resetModules();
     const { config } = await import('../../src/config');
-    expect(config.security.webhookSecret).toBe('new'.repeat(16));
     expect(config.security.callerPhoneHeader).toBe('x-telephony-caller');
+    expect(config.security.callIdHeader).toBe('x-telephony-call');
   });
 
-  it('falls back to the Retell header names while Retell is still the transport', async () => {
-    process.env.RETELL_CALL_ID_HEADER = 'x-retell-call-id';
+  it('defaults to vendor-neutral header names', async () => {
+    delete process.env.TELEPHONY_CALLER_PHONE_HEADER;
     delete process.env.TELEPHONY_CALL_ID_HEADER;
     vi.resetModules();
     const { config } = await import('../../src/config');
-    expect(config.security.callIdHeader).toBe('x-retell-call-id');
+    expect(config.security.callerPhoneHeader).toBe('x-caller-phone');
+    expect(config.security.callIdHeader).toBe('x-call-id');
   });
 });

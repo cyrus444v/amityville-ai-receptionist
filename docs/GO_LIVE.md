@@ -1,5 +1,18 @@
 # From here to a working voice agent
 
+> **Superseded where it concerns telephony (2026-08-26).** Every step below that
+> configures a Retell agent, points a webhook at `/retell/webhook`, or sets a
+> `tool_auth_secret` dynamic variable no longer applies: Retell has been removed
+> from the service, the webhook route is deleted, and the call headers are now
+> `x-call-id` and `x-caller-phone`. The self-hosted call handler that replaces it
+> is specified in `docs/VOICE_PIPELINE.md` and does not exist yet, so **there is
+> currently no procedure for placing a real call.**
+>
+> What remains valid and is still the live runbook: the AWS phases — staging
+> deploy, secret handling, the production cutover sequence, and the failure table
+> for the tool-auth boundary. Read those; ignore the agent-configuration steps
+> until this document is rewritten around the new call handler.
+
 Three phases, in order. Phase 0 gets you a real phone call with a real agent
 today, with zero risk to the clinic. Phase 1 puts it on AWS in isolation.
 Phase 2 is the production cutover.
@@ -60,21 +73,21 @@ Retell requires HTTPS, which is why a plain port forward will not do.
 Generate the tool config with the tunnel host swapped in:
 
 ```bash
-npm run retell:tools -- --base-url https://<your-tunnel-host>
+npm run agent:tools -- --base-url https://<your-tunnel-host>
 ```
 
-That writes `retell/generated/tools.local.json` (gitignored — a tunnel URL can
+That writes `agent/generated/tools.local.json` (gitignored — a tunnel URL can
 never be committed by accident). In Retell:
 
 1. **Duplicate your existing agent.** Never edit the live one for this.
 2. Import or paste the eight tools from the generated file.
-3. Paste `retell/system-prompt.txt` as the system prompt.
+3. Paste `agent/system-prompt.txt` as the system prompt.
 4. Add an agent-level **dynamic variable** `tool_auth_secret`, set to the
    `x-tool-auth` value from the banner. The tool headers reference it as
    `{{tool_auth_secret}}`, so the secret itself never lives in a file.
-5. Confirm each tool sends `x-retell-call-id: {{call_id}}`, and that
+5. Confirm each tool sends `x-call-id: {{call_id}}`, and that
    `find_appointment`, `reschedule_appointment` and `cancel_appointment` also
-   send `x-retell-caller-phone: {{user_number}}`.
+   send `x-caller-phone: {{user_number}}`.
 6. Point the agent's webhook at `https://<tunnel-host>/retell/webhook` and set
    the signing secret to the webhook secret from the banner.
 
@@ -220,7 +233,7 @@ first. The short version, because it changes this runbook's assumptions:
 | Symptom | Cause |
 |---|---|
 | every tool call returns 401 | `tool_auth_secret` missing or wrong on the Retell agent |
-| lookup returns 403 `CALLER_VERIFICATION_REQUIRED` | `x-retell-caller-phone: {{user_number}}` not set, or you are calling from a different number than the booking |
+| lookup returns 403 `CALLER_VERIFICATION_REQUIRED` | `x-caller-phone: {{user_number}}` not set, or you are calling from a different number than the booking |
 | lookup returns 409 `AMBIGUOUS_APPOINTMENT` | several confirmed appointments on that number — the agent must ask for the original date and exact time |
 | reschedule/cancel returns 404 "Verified appointment not found" | the selection token is missing, expired (10 min), or bound to another caller |
 | webhook returns 401 | signing secret mismatch, clock skew over 5 minutes, or Retell's signature scheme differs from the implementation — see below |

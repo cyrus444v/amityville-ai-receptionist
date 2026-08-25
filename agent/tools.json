@@ -5,7 +5,7 @@
     "url": "https://api.amityvillewellness.com/current-date",
     "headers": {
       "x-tool-auth": "{{tool_auth_secret}}",
-      "x-retell-call-id": "{{call_id}}"
+      "x-call-id": "{{call_id}}"
     },
     "speak_during_execution": false,
     "execution_message_description": "No spoken message needed — this is a silent background call.",
@@ -21,7 +21,7 @@
     "url": "https://api.amityvillewellness.com/check-availability",
     "headers": {
       "x-tool-auth": "{{tool_auth_secret}}",
-      "x-retell-call-id": "{{call_id}}"
+      "x-call-id": "{{call_id}}"
     },
     "speak_during_execution": false,
     "execution_message_description": "Silent — no spoken message during availability check.",
@@ -52,12 +52,12 @@
   },
   {
     "name": "find_appointment",
-    "description": "Privately locate one confirmed appointment before rescheduling or cancellation. Retell must send the actual caller number in the configured x-retell-caller-phone dynamic header. If more than one appointment matches, ask for the original date and exact time and call again. Pass the returned appointment_id and appointment_token unchanged to the write tool; never speak the token.",
+    "description": "Privately locate one confirmed appointment before rescheduling or cancellation. The call handler must send the actual caller number in the configured x-caller-phone header. If more than one appointment matches, ask for the original date and exact time and call again. Pass the returned appointment_id and appointment_token unchanged to the write tool; never speak the token.",
     "url": "https://api.amityvillewellness.com/find-appointment",
     "headers": {
       "x-tool-auth": "{{tool_auth_secret}}",
-      "x-retell-call-id": "{{call_id}}",
-      "x-retell-caller-phone": "{{user_number}}"
+      "x-call-id": "{{call_id}}",
+      "x-caller-phone": "{{user_number}}"
     },
     "speak_during_execution": false,
     "execution_message_description": "Silent — appointment details are returned only after caller-number verification.",
@@ -66,7 +66,7 @@
       "properties": {
         "phone": {
           "type": "string",
-          "description": "The phone number the appointment was booked under. It must match the verified caller number supplied by Retell."
+          "description": "The phone number the appointment was booked under. It must match the verified caller number supplied by the call handler."
         },
         "appointment_date": {
           "type": "string",
@@ -92,7 +92,7 @@
     "url": "https://api.amityvillewellness.com/create-appointment",
     "headers": {
       "x-tool-auth": "{{tool_auth_secret}}",
-      "x-retell-call-id": "{{call_id}}"
+      "x-call-id": "{{call_id}}"
     },
     "speak_during_execution": false,
     "execution_message_description": "Silent — do not speak while this runs. Confirmation is spoken AFTER the tool returns.",
@@ -151,8 +151,8 @@
     "url": "https://api.amityvillewellness.com/reschedule-appointment",
     "headers": {
       "x-tool-auth": "{{tool_auth_secret}}",
-      "x-retell-call-id": "{{call_id}}",
-      "x-retell-caller-phone": "{{user_number}}"
+      "x-call-id": "{{call_id}}",
+      "x-caller-phone": "{{user_number}}"
     },
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Let me update that appointment for you...'",
@@ -194,8 +194,8 @@
     "url": "https://api.amityvillewellness.com/cancel-appointment",
     "headers": {
       "x-tool-auth": "{{tool_auth_secret}}",
-      "x-retell-call-id": "{{call_id}}",
-      "x-retell-caller-phone": "{{user_number}}"
+      "x-call-id": "{{call_id}}",
+      "x-caller-phone": "{{user_number}}"
     },
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'Let me take care of that cancellation for you...'",
@@ -227,7 +227,7 @@
     "url": "https://api.amityvillewellness.com/create-callback",
     "headers": {
       "x-tool-auth": "{{tool_auth_secret}}",
-      "x-retell-call-id": "{{call_id}}"
+      "x-call-id": "{{call_id}}"
     },
     "speak_during_execution": true,
     "execution_message_description": "Say something like: 'I'll get that request in for you right now...'",
@@ -255,7 +255,7 @@
     "url": "https://api.amityvillewellness.com/search-services",
     "headers": {
       "x-tool-auth": "{{tool_auth_secret}}",
-      "x-retell-call-id": "{{call_id}}"
+      "x-call-id": "{{call_id}}"
     },
     "speak_during_execution": false,
     "execution_message_description": "No spoken message needed — response is fast.",

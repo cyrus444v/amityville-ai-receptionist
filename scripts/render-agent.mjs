@@ -3,11 +3,11 @@
  * Renders one clinic's complete Retell agent surface: its tool configuration and
  * its system prompt, both pointed at a chosen host.
  *
- *   node scripts/render-retell-agent.mjs --tenant amityville-wellness --env production
- *   node scripts/render-retell-agent.mjs --tenant amityville-wellness --env staging
- *   node scripts/render-retell-agent.mjs --tenant clinic-b --base-url https://abc.trycloudflare.com --inline-secret
+ *   node scripts/render-agent.mjs --tenant amityville-wellness --env production
+ *   node scripts/render-agent.mjs --tenant amityville-wellness --env staging
+ *   node scripts/render-agent.mjs --tenant clinic-b --base-url https://abc.trycloudflare.com --inline-secret
  *
- * Writes retell/generated/<slug>/tools.json and system-prompt.txt. That directory
+ * Writes agent/generated/<slug>/tools.json and system-prompt.txt. That directory
  * is gitignored: a rendered agent may carry a tunnel URL or a throwaway secret,
  * and neither belongs in the repository.
  *
@@ -16,8 +16,8 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { renderSystemPrompt } from '../retell/render-prompt.mjs';
-import { loadTools, rewriteToolUrls } from './lib/retell-tools.mjs';
+import { renderSystemPrompt } from '../agent/render-prompt.mjs';
+import { loadTools, rewriteToolUrls } from './lib/agent-tools.mjs';
 import { REPO_ROOT, hostForEnvironment, listTenantSlugs, loadTenantFile } from '../lib/tenant-file.mjs';
 
 function arg(name, fallback) {
@@ -25,7 +25,7 @@ function arg(name, fallback) {
   return index === -1 ? fallback : process.argv[index + 1];
 }
 
-const usage = 'usage: node scripts/render-retell-agent.mjs --tenant <slug> (--env <production|staging> | --base-url https://host) [--inline-secret]';
+const usage = 'usage: node scripts/render-agent.mjs --tenant <slug> (--env <production|staging> | --base-url https://host) [--inline-secret]';
 
 const slug = arg('tenant');
 const environment = arg('env');
@@ -50,10 +50,10 @@ try {
 
   const tools = rewriteToolUrls(loadTools(REPO_ROOT), baseUrl, { inlineSecret });
 
-  const templateText = readFileSync(resolve(REPO_ROOT, 'retell/system-prompt.template.txt'), 'utf8');
+  const templateText = readFileSync(resolve(REPO_ROOT, 'agent/system-prompt.template.txt'), 'utf8');
   const prompt = renderSystemPrompt({ templateText, tenant });
 
-  const outDir = resolve(REPO_ROOT, 'retell/generated', slug);
+  const outDir = resolve(REPO_ROOT, 'agent/generated', slug);
   mkdirSync(outDir, { recursive: true });
   const toolsPath = resolve(outDir, 'tools.json');
   const promptPath = resolve(outDir, 'system-prompt.txt');

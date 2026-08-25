@@ -6,7 +6,6 @@ import { initSheets } from './db/client';
 import appointmentsRouter from './routes/appointments';
 import callbacksRouter from './routes/callbacks';
 import toolsRouter from './routes/tools';
-import retellRouter from './routes/retell';
 import { toolAuth } from './middleware/tool-auth';
 import { createRateLimiter } from './middleware/rate-limit';
 import { createIdempotencyMiddleware } from './middleware/idempotency';
@@ -52,8 +51,6 @@ export function createApp(): express.Express {
   app.get('/', (_req, res) => {
     res.json({ status: 'ok', service: 'AI Receptionist Backend', timestamp: new Date().toISOString() });
   });
-
-  app.use(retellRouter);
 
   for (const prefix of ['/', '/v1']) {
     app.use(prefix, appointmentsRouter);

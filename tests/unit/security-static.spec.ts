@@ -24,13 +24,19 @@ describe('security regressions in operator and delivery files', () => {
     expect(routes).not.toContain('stored_phones');
   });
 
-  it('keeps every Retell tool authenticated and verifies signed webhooks', () => {
+  it('keeps every voice tool behind the auth boundary', () => {
     const index = read('src/index.ts');
-    const webhook = read('src/routes/retell.ts');
     expect(index).toContain("'/current-date'");
-    expect(webhook).toContain("req.get('x-retell-signature')");
-    expect(webhook).toContain("createHmac('sha256'");
-    expect(webhook).toContain('rawBody + match[1]');
+    expect(index).toContain('app.use(protectedToolPaths, toolAuth, rateLimiter)');
+  });
+
+  // The telephony vendor is gone and its webhook route with it. Whatever
+  // replaces it arrives with a different signature scheme, so this pins the
+  // absence rather than a scheme: a route added back without a deliberate
+  // update to this test is a route nobody reviewed.
+  it('mounts no unauthenticated webhook route', () => {
+    expect(read('src/index.ts')).not.toMatch(/webhook/i);
+    expect(fs.existsSync('src/routes/retell.ts')).toBe(false);
   });
 
   it('uses shared atomic coordination for slots, retries, callbacks, and limits', () => {

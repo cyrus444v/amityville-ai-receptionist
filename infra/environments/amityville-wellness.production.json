@@ -19,7 +19,7 @@
     "TIMEZONE": "America/New_York",
     "DEFAULT_APPOINTMENT_DURATION": "60",
 
-    "GOOGLE_CALENDAR_ID": "cyrus.lang1@gmail.com",
+    "GOOGLE_CALENDAR_ID": "af987376d423016c8ac71e0907e87ff6961ba55b8d8c0b0ef5405255fc73d65b@group.calendar.google.com",
     "GOOGLE_SPREADSHEET_ID": "1Nn7nMjzC0SkqP2PcjE69i_J-tmGiDUsXyCIpSjCDTjs",
     "GOOGLE_IMPERSONATE_EMAIL": "",
 
@@ -29,9 +29,8 @@
     "TOOL_AUTH_HEADER": "x-tool-auth",
     "TOOL_AUTH_VERSION": "v1",
     "APPOINTMENT_TOKEN_TTL_MS": "600000",
-    "RETELL_CALLER_PHONE_HEADER": "x-retell-caller-phone",
-    "RETELL_CALL_ID_HEADER": "x-retell-call-id",
-    "RETELL_WEBHOOK_TOLERANCE_MS": "300000",
+    "TELEPHONY_CALLER_PHONE_HEADER": "x-caller-phone",
+    "TELEPHONY_CALL_ID_HEADER": "x-call-id",
 
     "ALLOWED_ORIGINS": "",
     "REQUEST_BODY_LIMIT": "32kb",

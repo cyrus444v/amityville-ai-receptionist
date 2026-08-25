@@ -2,13 +2,12 @@
 /**
  * Post-deploy smoke test.
  *
- * Deliberately credential-free and read-only. It proves three things without CI
+ * Deliberately credential-free and read-only. It proves two things without CI
  * ever holding the tool secret and without creating, moving or cancelling any
  * appointment:
  *
  *   1. the service is up and answering an unauthenticated health check;
- *   2. the tool boundary is live — a protected tool rejects an anonymous call;
- *   3. the Retell webhook rejects an unsigned body.
+ *   2. the tool boundary is live — protected tools reject an anonymous call.
  *
  * A deploy that leaves the auth boundary open therefore fails the smoke test
  * instead of quietly serving patient data.
@@ -58,17 +57,6 @@ const checks = [
         body: JSON.stringify({ phone: '+10000000000' }),
       });
       return status === 401 ? null : `expected 401 without credentials, got ${status}`;
-    },
-  },
-  {
-    name: 'retell webhook rejects an unsigned body',
-    run: async () => {
-      const { status } = await probe('/retell/webhook', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ event: 'call_ended' }),
-      });
-      return status === 401 ? null : `expected 401 for an unsigned webhook, got ${status}`;
     },
   },
 ];

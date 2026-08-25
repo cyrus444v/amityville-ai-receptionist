@@ -171,7 +171,7 @@ Still to do, in this order:
      aws secretsmanager put-secret-value --region ${REGION} \\
        --secret-id ${SERVICE_NAME}/${ENVIRONMENT}/GOOGLE_CREDENTIALS_BASE64 \\
        --secret-string file://<path-to-base64-key>
-   Same for RETELL_WEBHOOK_SECRET and RESEND_API_KEY. Never echo these values.
+   Same for RESEND_API_KEY. Never echo these values.
 
 3. Build and push the image, then register the task definition:
      SHA=\$(git rev-parse HEAD)

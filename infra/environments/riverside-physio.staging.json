@@ -1,7 +1,7 @@
 {
   "environment": "staging",
   "tenant": "riverside-physio",
-  "description": "Isolated rehearsal environment for Riverside Physiotherapy & Rehab. Must never reference the live calendar, the live appointment spreadsheet, or the live Retell agent.",
+  "description": "Isolated rehearsal environment for Riverside Physiotherapy & Rehab. Must never reference the live calendar, the live appointment spreadsheet, or the live voice agent.",
   "readonlyRootFilesystem": true,
   "values": {
     "SERVICE": "riverside-physio",
@@ -25,9 +25,8 @@
     "TOOL_AUTH_HEADER": "x-tool-auth",
     "TOOL_AUTH_VERSION": "v1",
     "APPOINTMENT_TOKEN_TTL_MS": "600000",
-    "RETELL_CALLER_PHONE_HEADER": "x-retell-caller-phone",
-    "RETELL_CALL_ID_HEADER": "x-retell-call-id",
-    "RETELL_WEBHOOK_TOLERANCE_MS": "300000",
+    "TELEPHONY_CALLER_PHONE_HEADER": "x-caller-phone",
+    "TELEPHONY_CALL_ID_HEADER": "x-call-id",
     "ALLOWED_ORIGINS": "",
     "REQUEST_BODY_LIMIT": "32kb",
     "RATE_LIMIT_WINDOW_MS": "60000",

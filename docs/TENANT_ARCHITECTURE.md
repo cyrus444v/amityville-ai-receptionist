@@ -46,7 +46,7 @@ Recon of the current tree:
 | Email footer | ~~hardcoded in `src/services/email.ts:130`~~ → `tenant.email.footer_locality` | fixed |
 | Phone / address / website | env vars | already fine |
 | Timezone, duration | env vars | already fine |
-| System prompt | `retell/system-prompt.template.txt` + `tenant.prompt` | fixed; 16 placeholders, not 4 — see "Where this plan was wrong" |
+| System prompt | `agent/system-prompt.template.txt` + `tenant.prompt` | fixed; 16 placeholders, not 4 — see "Where this plan was wrong" |
 | Calendar / spreadsheet IDs | env vars | already fine |
 
 The refactor was hours, services, name defaults, the email footer — and, once the
@@ -109,16 +109,16 @@ Each step left `npm run test:ci`, `npm run harness` and
 4. ✅ **`src/services/email.ts`** — footer locality, from-name, from-address and
    reply-to come from the tenant. `renderConfirmationEmail()` was split out as a
    pure function so a clinic's rendered mail can be asserted without sending.
-5. ✅ **`retell/system-prompt.template.txt` (new)** — *deviation: sixteen
+5. ✅ **`agent/system-prompt.template.txt` (new)** — *deviation: sixteen
    placeholders, not five.* The prompt was far more clinic-specific than this plan
-   assumed. `retell/system-prompt.txt` is unchanged, and
+   assumed. `agent/system-prompt.txt` is unchanged, and
    `tests/unit/system-prompt.spec.ts` asserts the template plus the tenant file
    reproduce it **byte-for-byte** — which is what keeps the static eval's six
    prompt invariants passing, rather than re-checking them by hand.
-6. ✅ **`scripts/render-retell-agent.mjs` (new)** — `--tenant <slug>` plus either
+6. ✅ **`scripts/render-agent.mjs` (new)** — `--tenant <slug>` plus either
    `--env <environment>` or `--base-url`, emitting `tools.json` and the rendered
-   prompt into `retell/generated/<slug>/`. The URL rewriting it shares with
-   `retell-tools-for.mjs` moved to `scripts/lib/retell-tools.mjs`, including the
+   prompt into `agent/generated/<slug>/`. The URL rewriting it shares with
+   `retell-tools-for.mjs` moved to `scripts/lib/agent-tools.mjs`, including the
    refusal to inline a secret for anything but a throwaway host. It refuses an
    unfilled `REPLACE_WITH_*` host rather than emitting an agent that fails every
    call.

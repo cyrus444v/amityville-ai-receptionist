@@ -172,7 +172,7 @@ no access keys.
 
 2. **The clinic has no working phone agent right now.** So this is a first launch,
    not a cutover. Nothing to keep alive, no callers to drop, no rollback target.
-   `retell/tools.json` points at `api.amityvillewellness.com`, which does not
+   `agent/tools.json` points at `api.amityvillewellness.com`, which does not
    resolve, so any Retell agent still configured from it is non-functional; the
    hostname has to be created before a test call can work at all.
 
@@ -389,15 +389,15 @@ availability re-check against the real calendar.
 
 ## Retell agent surface
 
-`retell/tools.json` previously declared no headers, so after the auth boundary
+`agent/tools.json` previously declared no headers, so after the auth boundary
 went live every tool call would have returned 401 mid-conversation. Each tool now
 declares:
 
 | Header | Value | Purpose |
 |---|---|---|
 | `x-tool-auth` | `{{tool_auth_secret}}` | versioned tool credential |
-| `x-retell-call-id` | `{{call_id}}` | shared rate limiting per call, not per Retell IP |
-| `x-retell-caller-phone` | `{{user_number}}` | verified caller number; only on `find_appointment`, `reschedule_appointment`, `cancel_appointment` |
+| `x-call-id` | `{{call_id}}` | shared rate limiting per call, not per Retell IP |
+| `x-caller-phone` | `{{user_number}}` | verified caller number; only on `find_appointment`, `reschedule_appointment`, `cancel_appointment` |
 
 These are Retell dynamic-variable templates. `tool_auth_secret` is set once as an
 agent-level dynamic variable in the Retell dashboard, so the real secret stays

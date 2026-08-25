@@ -1,7 +1,9 @@
 # AIVANCE Voice Agent
 
-Voice receptionist for clinics: takes calls through Retell, books, reschedules and
-cancels appointments against Google Calendar and Sheets, and confirms by email.
+Voice receptionist for clinics: books, reschedules and cancels appointments
+against Google Calendar and Sheets, and confirms by email. The booking core is
+reachable over authenticated HTTP and carries no telephony vendor; the call
+handler that will drive it is being built in-house (`docs/VOICE_PIPELINE.md`).
 First customer is Amityville Acupuncture, Microneedling & Wellness. Everything
 clinic-specific — identity, hours, services, email footer, the clinic-authored
 prompt sections — lives in one file per clinic under `tenants/`, so a further
@@ -32,8 +34,9 @@ TENANT_SLUG=riverside-physio PORT=3002 npm run dev:local
 npm run local:check -- --base http://localhost:3002 --caller +19515550199 --secret <...>
 ```
 
-Then follow `docs/GO_LIVE.md` §3–6 to tunnel the port, point a duplicated Retell
-agent at it, and place a real test call.
+There is currently no way to place a real phone call: the self-hosted telephony
+pipeline does not exist yet. Everything below the call layer is exercised by the
+offline harness and by `npm run local:check`.
 
 ## Where to read next
 
@@ -42,7 +45,7 @@ agent at it, and place a real test call.
 | `docs/GO_LIVE.md` | the runbook: test call → staging → production, plus a symptom-to-cause table |
 | `docs/TENANT_ARCHITECTURE.md` | how this is sellable to many clinics, the refactor that got there, and where the plan was wrong |
 | `docs/CLAUDE_CODE_HANDOFF.md` | the current work order, in four phases |
-| `docs/INFRASTRUCTURE.md` | the AWS topology, the task-definition renderer, the Retell surface |
+| `docs/INFRASTRUCTURE.md` | the AWS topology, the task-definition renderer, the deployed surface |
 | `docs/ENV.md` | every environment variable and the production rollout order |
 | `docs/handoff/` | written history: security review, infrastructure build, originating prompt |
 
@@ -50,13 +53,13 @@ agent at it, and place a real test call.
 
 ```
 src/          the service
-tests/        232 tests — unit, integration, infra, and the offline voice harness
+tests/        234 tests — unit, integration, infra, and the offline voice harness
 harness/      in-memory Google doubles + the local server + the flow driver
 infra/        CloudFormation, per-environment config, the task-definition renderer
 tenants/      one file per clinic (identity, hours, services, prompt sections)
 lib/          tenant-file reading and clinic scaffolding, shared by scripts and infra
-retell/       the agent's tool contract and system prompt
-scripts/      local check, post-deploy smoke test, Retell config generator
+agent/        the agent's tool contract and system prompt
+scripts/      local check, post-deploy smoke test, agent config generator
 evals/        the voice and security evaluator, scenarios and fixtures
 ```
 
@@ -71,14 +74,14 @@ evals/        the voice and security evaluator, scenarios and fixtures
 | `npm run eval:static` | 48 prompt/tool/backend contract and security checks |
 | `npm run eval:transcripts` | scores the harness transcripts against the voice scenarios |
 | `npm run infra:render` | render a task definition: `-- --tenant <slug> --env <environment> --image-tag <sha>` |
-| `npm run retell:tools` | emit a tool config pointed at a tunnel or staging host |
-| `npm run retell:agent` | emit one clinic's tools **and** rendered system prompt |
+| `npm run agent:tools` | emit a tool config pointed at a tunnel or staging host |
+| `npm run agent:prompt` | emit one clinic's tools **and** rendered system prompt |
 | `npm run new-tenant` | scaffold a new clinic and print what is left to do by hand |
 | `npm run smoke` | read-only post-deploy probe of a deployed host |
 
 ## Status
 
-Green: build, 232 tests, static eval 48/48, transcript eval 48/48, and 22/22 local
+Green: build, 234 tests, static eval 48/48, transcript eval 48/48, and 22/22 local
 checks against a live server for **each** of two clinics.
 
 The tenant refactor in `docs/TENANT_ARCHITECTURE.md` is implemented: no clinic
@@ -87,11 +90,15 @@ application, serves the whole tool flow, and reports its own hours, services,
 timezone and email footer — proven by `tests/harness/second-tenant.spec.ts`, not
 by inspection.
 
-Not yet done: **the CloudFormation has never been applied to AWS.** It is now
-split into `shared-alb.yml` and `tenant-service.yml`, and the compute and
-networking it was missing are written, but nothing in it has been validated
-against a real account — the VPC, subnet and certificate parameters still have to
-come from there. Nothing has had independent review since the security baseline.
+Deployed: staging runs in AWS account 668764275927 behind `voice-agent-staging`,
+and `npm run smoke https://api-staging.amityvillewellness.com` passes. The
+CloudFormation is split into `shared-alb.yml` and `tenant-service.yml`; both have
+been applied for staging.
+
+Not yet done: **production does not exist** — no stack, no load balancer, no
+secrets — and **nobody has ever placed a call**, because the telephony layer is
+still to be built. Nothing has had independent review since the security
+baseline.
 
 **Before any production traffic:** the Google service-account key that was once
 committed to this repository is compromised and must be rotated in Google Cloud.

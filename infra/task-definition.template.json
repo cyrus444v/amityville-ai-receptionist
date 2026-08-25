@@ -43,9 +43,8 @@
         { "name": "TOOL_AUTH_HEADER", "value": "${TOOL_AUTH_HEADER}" },
         { "name": "TOOL_AUTH_VERSION", "value": "${TOOL_AUTH_VERSION}" },
         { "name": "APPOINTMENT_TOKEN_TTL_MS", "value": "${APPOINTMENT_TOKEN_TTL_MS}" },
-        { "name": "RETELL_CALLER_PHONE_HEADER", "value": "${RETELL_CALLER_PHONE_HEADER}" },
-        { "name": "RETELL_CALL_ID_HEADER", "value": "${RETELL_CALL_ID_HEADER}" },
-        { "name": "RETELL_WEBHOOK_TOLERANCE_MS", "value": "${RETELL_WEBHOOK_TOLERANCE_MS}" },
+        { "name": "TELEPHONY_CALLER_PHONE_HEADER", "value": "${TELEPHONY_CALLER_PHONE_HEADER}" },
+        { "name": "TELEPHONY_CALL_ID_HEADER", "value": "${TELEPHONY_CALL_ID_HEADER}" },
 
         { "name": "ALLOWED_ORIGINS", "value": "${ALLOWED_ORIGINS}" },
         { "name": "REQUEST_BODY_LIMIT", "value": "${REQUEST_BODY_LIMIT}" },
@@ -57,7 +56,6 @@
       "secrets": [
         { "name": "TOOL_AUTH_SECRET", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:${SERVICE}/${ENVIRONMENT}/TOOL_AUTH_SECRET" },
         { "name": "APPOINTMENT_TOKEN_SECRET", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:${SERVICE}/${ENVIRONMENT}/APPOINTMENT_TOKEN_SECRET" },
-        { "name": "RETELL_WEBHOOK_SECRET", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:${SERVICE}/${ENVIRONMENT}/RETELL_WEBHOOK_SECRET" },
         { "name": "GOOGLE_CREDENTIALS_BASE64", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:${SERVICE}/${ENVIRONMENT}/GOOGLE_CREDENTIALS_BASE64" },
         { "name": "RESEND_API_KEY", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:${SERVICE}/${ENVIRONMENT}/RESEND_API_KEY" }
       ],

@@ -43,7 +43,7 @@ the ones with a compliance cost attached — see below.
 ## What is already built, and must survive
 
 - The eight HTTPS tools, live and tested against staging.
-- `retell/generated/amityville-wellness/system-prompt.txt` — 278 reviewed lines.
+- `agent/generated/amityville-wellness/system-prompt.txt` — 278 reviewed lines.
   This becomes the LLM system prompt directly. Re-home it; do not rewrite it.
 - `harness/` plus the eight transcript scenarios. This is the offline safety net
   and the only way the pipeline is testable without a phone. Extend it.
@@ -60,7 +60,7 @@ would stop the running container from booting before any replacement exists.
 `TOOL_AUTH_SECRET` / `_HEADER` / `_VERSION` were already provider-neutral and
 were not touched.
 
-Nothing was deleted. `src/routes/retell.ts`, `retell/` and the `retell:*` scripts
+Nothing was deleted. `src/routes/retell.ts`, `agent/` and the `retell:*` scripts
 stay until the self-hosted path handles all six call scenarios in staging.
 
 ## Verified vendor facts (25 August 2026)

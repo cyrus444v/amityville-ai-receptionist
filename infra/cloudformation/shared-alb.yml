@@ -63,7 +63,7 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
-          Description: HTTPS from Retell and from the public internet.
+          Description: HTTPS from the public internet.
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80

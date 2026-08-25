@@ -1,7 +1,8 @@
 /**
  * Offline voice-flow driver.
  *
- * Drives the real Express app over HTTP with the same headers Retell sends,
+ * Drives the real Express app over HTTP with the same headers the telephony
+ * layer sends,
  * records every tool call, and emits transcripts in the shape the pipeline's
  * transcript evaluator expects.
  *
@@ -76,7 +77,7 @@ export class VoiceCall {
   }
 
   /**
-   * Invokes one Retell tool. `overrides` lets a scenario deliberately omit
+   * Invokes one voice tool. `overrides` lets a scenario deliberately omit
    * credentials or spoof a caller number to prove the boundary holds.
    */
   async tool(
@@ -91,8 +92,8 @@ export class VoiceCall {
     const headers: Record<string, string> = {};
     const defaults: Record<string, string> = {
       [this.options.toolAuthHeader ?? 'x-tool-auth']: this.options.toolSecret,
-      [this.options.callerPhoneHeader ?? 'x-retell-caller-phone']: this.options.callerPhone,
-      [this.options.callIdHeader ?? 'x-retell-call-id']: this.options.callId,
+      [this.options.callerPhoneHeader ?? 'x-caller-phone']: this.options.callerPhone,
+      [this.options.callIdHeader ?? 'x-call-id']: this.options.callId,
     };
     for (const [key, value] of Object.entries({ ...defaults, ...(overrides.headers ?? {}) })) {
       if (value !== undefined) headers[key] = value;
