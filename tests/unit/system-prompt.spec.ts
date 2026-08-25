@@ -59,6 +59,30 @@ describe('the template carries no clinic identity of its own', () => {
   });
 });
 
+/**
+ * The next Monday at least two days out, plus the six days after it. Two days
+ * of slack rather than one: the clinic books in America/New_York, so a date
+ * that is merely "tomorrow" in UTC can still be today there.
+ */
+function nextFullWeek(): Record<string, string> {
+  const MONDAY = 1;
+  const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+  const cursor = new Date();
+  cursor.setUTCHours(12, 0, 0, 0);
+  do {
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  } while (cursor.getUTCDay() !== MONDAY || cursor.getTime() - Date.now() < TWO_DAYS_MS);
+
+  const names = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const week: Record<string, string> = {};
+  names.forEach((name, offset) => {
+    const day = new Date(cursor);
+    day.setUTCDate(cursor.getUTCDate() + offset);
+    week[name] = day.toISOString().slice(0, 10);
+  });
+  return week;
+}
+
 describe('spoken hours', () => {
   it('formats whole and part hours the way a receptionist says them', () => {
     expect(formatSpokenTime('09:00')).toBe('9 AM');
@@ -81,15 +105,15 @@ describe('spoken hours', () => {
   });
 
   it('advertises only hours the backend will actually accept', async () => {
-    // Monday 24 August 2026 through Sunday the 30th — a full future week, so no
-    // probe is refused merely for being in the past. Only the day-and-hours
-    // verdicts are asserted: each resolves before any calendar call, so this
-    // stays an offline check of the prompt against the booking rules.
-    const dates: Record<string, string> = {
-      monday: '2026-08-24', tuesday: '2026-08-25', wednesday: '2026-08-26',
-      thursday: '2026-08-27', friday: '2026-08-28', saturday: '2026-08-29',
-      sunday: '2026-08-30',
-    };
+    // A full future week, computed rather than written down. Every probe must
+    // land in the future or the backend answers PAST_DATE and the day-and-hours
+    // verdict this test is actually about never gets reached. This week used to
+    // be the hardcoded 24–30 August 2026; it went stale on the 25th and took the
+    // suite red with it, for a reason that had nothing to do with the code under
+    // test. Only day-and-hours verdicts are asserted: each resolves before any
+    // calendar call, so this stays an offline check of the prompt against the
+    // booking rules.
+    const dates = nextFullWeek();
     const anHourBefore = (time: string) => `${String(Number(time.slice(0, 2)) - 1).padStart(2, '0')}:${time.slice(3)}`;
 
     for (const [day, date] of Object.entries(dates)) {
