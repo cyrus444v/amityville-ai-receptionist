@@ -2,8 +2,9 @@
 
 Voice receptionist for clinics: books, reschedules and cancels appointments
 against Google Calendar and Sheets, and confirms by email. The booking core is
-reachable over authenticated HTTP and carries no telephony vendor; the call
-handler that will drive it is being built in-house (`docs/VOICE_PIPELINE.md`).
+reachable over authenticated HTTP. The call itself — speech recognition,
+turn-taking, the LLM and the voice — runs on the ElevenLabs Agents platform,
+provisioned from this repository (`docs/VOICE_PIPELINE.md`).
 First customer is Amityville Acupuncture, Microneedling & Wellness. Everything
 clinic-specific — identity, hours, services, email footer, the clinic-authored
 prompt sections — lives in one file per clinic under `tenants/`, so a further
@@ -34,9 +35,10 @@ TENANT_SLUG=riverside-physio PORT=3002 npm run dev:local
 npm run local:check -- --base http://localhost:3002 --caller +19515550199 --secret <...>
 ```
 
-There is currently no way to place a real phone call: the self-hosted telephony
-pipeline does not exist yet. Everything below the call layer is exercised by the
-offline harness and by `npm run local:check`.
+To place a real phone call, a clinic's agent has to be provisioned on
+ElevenLabs and given a number — see `docs/VOICE_PIPELINE.md`. Until then
+everything below the call layer is exercised by the offline harness and by
+`npm run local:check`.
 
 ## Where to read next
 
@@ -53,7 +55,7 @@ offline harness and by `npm run local:check`.
 
 ```
 src/          the service
-tests/        234 tests — unit, integration, infra, and the offline voice harness
+tests/        294 tests — unit, integration, infra, and the offline voice harness
 harness/      in-memory Google doubles + the local server + the flow driver
 infra/        CloudFormation, per-environment config, the task-definition renderer
 tenants/      one file per clinic (identity, hours, services, prompt sections)

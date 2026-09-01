@@ -29,6 +29,15 @@ function csv(value: string | undefined): string[] {
   return (value ?? '').split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+/**
+ * An operator attestation. Deliberately strict: only the exact string "true"
+ * counts. A compliance gate that opens on "yes", "1" or "TRUE " is a gate that
+ * opens on a typo.
+ */
+function boolFlag(value: string | undefined): boolean {
+  return (value ?? '').trim() === 'true';
+}
+
 function bodyLimit(value: string | undefined): string {
   const candidate = (value ?? '').trim();
   return /^\d+(?:b|kb|mb)$/i.test(candidate) ? candidate : '32kb';
@@ -63,6 +72,30 @@ export const config = {
     // this service owns, not by a vendor, so the names carry no vendor in them.
     callerPhoneHeader: (process.env.TELEPHONY_CALLER_PHONE_HEADER || 'x-caller-phone').toLowerCase(),
     callIdHeader: (process.env.TELEPHONY_CALL_ID_HEADER || 'x-call-id').toLowerCase(),
+  },
+
+  // The voice vendor holds the media path and the turn-taking model. The
+  // service itself never calls ElevenLabs: it only receives two webhooks from
+  // them, and both are authenticated here.
+  voice: {
+    vendor: (process.env.VOICE_VENDOR || 'elevenlabs').trim().toLowerCase(),
+    // Signs the post-call webhook. Issued by ElevenLabs when the webhook is
+    // created; not a secret we choose.
+    webhookSecret: (process.env.ELEVENLABS_WEBHOOK_SECRET || '').trim(),
+    // Guards the conversation-initiation webhook, which ElevenLabs does not
+    // sign. This one is ours, sent back as a request header we configure.
+    initiationSecret: (process.env.ELEVENLABS_INITIATION_SECRET || '').trim(),
+    initiationHeader: (process.env.ELEVENLABS_INITIATION_HEADER || 'x-initiation-auth').toLowerCase(),
+    webhookToleranceMs: positiveInteger(process.env.TELEPHONY_WEBHOOK_TOLERANCE_MS, 5 * 60_000),
+    // The tool endpoints take small JSON and are capped at 32kb. A post-call
+    // payload is a whole transcript: a 400-turn call is comfortably past that,
+    // and a 413 makes the vendor retry and then disable the webhook outright.
+    // This limit applies only to the two voice routes.
+    bodyLimit: bodyLimit(process.env.VOICE_BODY_LIMIT || '2mb'),
+    // Two independent operator attestations, both required in production before
+    // any patient audio may reach the vendor. See assertVoiceVendorCleared().
+    baaAttested: boolFlag(process.env.ELEVENLABS_BAA_ATTESTED),
+    zeroRetention: boolFlag(process.env.ELEVENLABS_ZERO_RETENTION),
   },
 
   // The clinic's identity comes from its tenant configuration. The environment

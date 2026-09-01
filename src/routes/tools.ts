@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { searchServices, getAllServices, buildSpokenServiceList } from '../services/knowledge';
+import { currentDateContext } from '../services/call-context';
 import { config } from '../config';
 import { z } from 'zod';
 import dayjs from 'dayjs';
@@ -40,29 +41,11 @@ router.get('/services', (_req: Request, res: Response) => {
   return res.json({ success: true, services: getAllServices() });
 });
 
-// GET /current-date  — gives the LLM today's date in the business timezone so it can calculate relative dates correctly
+// GET /current-date  — gives the LLM today's date in the business timezone so it can calculate relative dates correctly.
+// The computation lives in services/call-context so that this tool and the
+// conversation-initiation webhook can never report different days.
 router.get('/current-date', (_req: Request, res: Response) => {
-  const tz = config.business.timezone;
-  const now = dayjs().tz(tz);
-  const tomorrow = now.add(1, 'day');
-  const dayAfter = now.add(2, 'day');
-  return res.json({
-    success: true,
-    today: {
-      date: now.format('YYYY-MM-DD'),
-      day_of_week: now.format('dddd'),
-    },
-    tomorrow: {
-      date: tomorrow.format('YYYY-MM-DD'),
-      day_of_week: tomorrow.format('dddd'),
-    },
-    day_after_tomorrow: {
-      date: dayAfter.format('YYYY-MM-DD'),
-      day_of_week: dayAfter.format('dddd'),
-    },
-    current_time: now.format('HH:mm'),
-    timezone: tz,
-  });
+  return res.json({ success: true, ...currentDateContext() });
 });
 
 // GET /health — unauthenticated, non-mutating liveness check

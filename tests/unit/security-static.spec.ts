@@ -30,13 +30,40 @@ describe('security regressions in operator and delivery files', () => {
     expect(index).toContain('app.use(protectedToolPaths, toolAuth, rateLimiter)');
   });
 
-  // The telephony vendor is gone and its webhook route with it. Whatever
-  // replaces it arrives with a different signature scheme, so this pins the
-  // absence rather than a scheme: a route added back without a deliberate
-  // update to this test is a route nobody reviewed.
-  it('mounts no unauthenticated webhook route', () => {
-    expect(read('src/index.ts')).not.toMatch(/webhook/i);
+  // This test used to pin the *absence* of any webhook route, on the grounds
+  // that a route added back without a deliberate update here is a route nobody
+  // reviewed. Two have now been added back deliberately, for the ElevenLabs
+  // Agents integration, so the test changes from pinning absence to pinning
+  // that each one carries authentication and the PHI gate. The old telephony
+  // vendor's route stays gone.
+  it('mounts every webhook route behind authentication and the PHI gate', () => {
+    const index = read('src/index.ts');
     expect(fs.existsSync('src/routes/retell.ts')).toBe(false);
+
+    // Each mounted voice hook names its own verifier. A hook added later
+    // without one fails here.
+    const mounts = [...index.matchAll(/app\.post\(\s*'(\/voice\/[^']+)',([^;]*?)\);/gs)];
+    expect(mounts.length).toBeGreaterThanOrEqual(2);
+    for (const [, path, body] of mounts) {
+      expect(body, `${path} is not gated on PHI clearance`).toContain('requireVoiceVendorClearance');
+      expect(body, `${path} has no signature or secret check`)
+        .toMatch(/verifyPostCallSignature|verifyInitiationSecret/);
+    }
+  });
+
+  it('verifies the vendor signature in constant time and bounds it in both directions', () => {
+    const middleware = read('src/middleware/voice-webhook.ts');
+    expect(middleware).toContain('timingSafeEqual');
+    // Math.abs is what makes the timestamp window two-sided. The vendor's own
+    // SDK checks only the lower bound, which leaves a captured request
+    // replayable forever if its timestamp is in the future.
+    expect(middleware).toContain('Math.abs(Date.now()');
+    // No secret, no service: an unsigned transcript endpoint is an open PHI sink.
+    expect(middleware).toContain('WEBHOOK_NOT_CONFIGURED');
+  });
+
+  it('does not persist call transcripts before the retention question is settled', () => {
+    expect(read('src/routes/voice.ts')).toContain('transcript_persisted: false');
   });
 
   it('uses shared atomic coordination for slots, retries, callbacks, and limits', () => {

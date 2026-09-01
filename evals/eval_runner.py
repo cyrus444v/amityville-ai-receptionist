@@ -21,8 +21,17 @@ def check(condition: bool, code: str, message: str, severity: str = "error") -> 
 
 def static_checks(repo: Path, config: Dict) -> List[Dict]:
     results: List[Dict] = []
-    tools_path = repo / "retell" / "tools.json"
-    prompt_path = repo / "retell" / "system-prompt.txt"
+    # The agent surface moved out of retell/ when the telephony vendor was
+    # dropped. These two files are vendor-neutral and are still the canonical
+    # definition of what the agent can do and how it is told to behave; the
+    # ElevenLabs provisioner renders both from exactly these.
+    #
+    # This mattered more than it looks: static_checks() returns early when a
+    # required file is missing, so while these paths pointed at the deleted
+    # retell/ directory only 6 of the 48 checks ran at all, and the eval
+    # reported "4 passed" instead of failing.
+    tools_path = repo / "agent" / "tools.json"
+    prompt_path = repo / "agent" / "system-prompt.txt"
     validation_path = repo / "src" / "utils" / "validation.ts"
     routes_path = repo / "src" / "routes" / "appointments.ts"
     index_path = repo / "src" / "index.ts"
@@ -36,14 +45,14 @@ def static_checks(repo: Path, config: Dict) -> List[Dict]:
 
     try:
         tools = load_json(tools_path)
-        results.append(check(isinstance(tools, list), "tools:json", "retell/tools.json is a JSON array"))
+        results.append(check(isinstance(tools, list), "tools:json", "agent/tools.json is a JSON array"))
     except Exception as exc:
-        results.append(check(False, "tools:json", "retell/tools.json parses: %s" % exc))
+        results.append(check(False, "tools:json", "agent/tools.json parses: %s" % exc))
         return results
 
     by_name = {item.get("name"): item for item in tools if isinstance(item, dict)}
     expected = set(config.get("expected_tools", []))
-    results.append(check(expected.issubset(set(by_name)), "tools:expected", "All expected Retell tools are present"))
+    results.append(check(expected.issubset(set(by_name)), "tools:expected", "All expected agent tools are present"))
 
     allowed_hosts = set(config.get("production_hosts", []))
     for name, tool in sorted(by_name.items()):
@@ -108,7 +117,16 @@ def static_checks(repo: Path, config: Dict) -> List[Dict]:
         if name in expected:
             results.append(check(route in all_source, "route:%s" % name, "Backend implements %s" % route))
 
-    results.append(check("verify" in (repo / "src" / "routes" / "retell.ts").read_text(encoding="utf-8").lower(), "security:webhook-signature", "Retell webhook authenticity is verified"))
+    # Was: src/routes/retell.ts. The telephony vendor's route is gone; the
+    # voice vendor's two webhooks are verified in this middleware instead —
+    # one by vendor signature, one by a shared secret we issue.
+    webhook_middleware = (repo / "src" / "middleware" / "voice-webhook.ts")
+    webhook_source = webhook_middleware.read_text(encoding="utf-8").lower() if webhook_middleware.is_file() else ""
+    results.append(check(
+        "timingsafeequal" in webhook_source and "createhmac" in webhook_source,
+        "security:webhook-signature",
+        "Voice vendor webhook authenticity is verified in constant time",
+    ))
     results.append(check("rate" in index.lower() and "limit" in index.lower(), "security:rate-limit", "Public tool endpoints have rate limiting"))
     results.append(check("cors()" not in index.replace(" ", ""), "security:cors", "CORS is restricted instead of globally open"))
     results.append(check("stored_phones" not in routes, "privacy:phone-logging", "Appointment lookup does not log stored phone numbers"))

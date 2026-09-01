@@ -15,6 +15,14 @@ The service never supplies a production credential. Secrets must be generated an
 | `APPOINTMENT_TOKEN_TTL_MS` | No | No | `600000`. Appointment selection-token lifetime. |
 | `TELEPHONY_CALLER_PHONE_HEADER` | No | No | `x-caller-phone`. Trusted header the call handler sets to the verified caller number for lookup, reschedule, and cancel tools. |
 | `TELEPHONY_CALL_ID_HEADER` | No | No | `x-call-id`. Trusted header the call handler sets to the per-call id, used for shared rate limiting. |
+| `VOICE_VENDOR` | No | No | `elevenlabs`. Names the vendor holding the media path; recorded on every call log line. |
+| `ELEVENLABS_WEBHOOK_SECRET` | Yes, once calls are live | Yes | Signs the post-call webhook. **Issued by ElevenLabs** when the webhook is created — not a value you choose. Unset means `/voice/post-call` returns 503 rather than accepting unsigned patient data. |
+| `ELEVENLABS_INITIATION_SECRET` | Yes, once calls are live | Yes | Shared secret guarding `/voice/call-initiation`, which ElevenLabs does not sign. **We** generate this and configure it as a request header on the agent. Unset means the route returns 503. |
+| `ELEVENLABS_INITIATION_HEADER` | No | No | `x-initiation-auth`. Header name carrying `ELEVENLABS_INITIATION_SECRET`. |
+| `TELEPHONY_WEBHOOK_TOLERANCE_MS` | No | No | `300000`. Two-sided timestamp window on the signed webhook. |
+| `VOICE_BODY_LIMIT` | No | No | `2mb`. Body limit for `/voice/*` only. A post-call transcript is far larger than the 32kb `REQUEST_BODY_LIMIT` the tool endpoints use; a 413 makes the vendor retry and then disable the webhook. |
+| `ELEVENLABS_BAA_ATTESTED` | Yes, before any patient call | No | Must be exactly `true`. Operator attestation that a BAA is executed with ElevenLabs. See the PHI gate below. |
+| `ELEVENLABS_ZERO_RETENTION` | Yes, before any patient call | No | Must be exactly `true`. Operator attestation that Zero Retention Mode is engaged on the agent. See the PHI gate below. |
 | `COORDINATION_TABLE` | Yes | No | DynamoDB table used for atomic slot/callback claims, cross-task idempotency state, mutation state, and rate-limit counters. Partition key must be string `pk`; TTL attribute is `ttl`. |
 | `COORDINATION_REGION` | No | No | `AWS_REGION` or `us-east-1`. Region containing the coordination table. |
 | `ALLOWED_ORIGINS` | No | No | Empty. Comma-separated browser origins; requests without an `Origin` header remain allowed for server-to-server calls. Avoid `*` in production. |
@@ -44,9 +52,30 @@ The service never supplies a production credential. Secrets must be generated an
 
 `aws-setup.sh` additionally requires `GOOGLE_CREDENTIALS_BASE64_FILE`, `TOOL_AUTH_SECRET_FILE` and `APPOINTMENT_TOKEN_SECRET_FILE` to point to operator-owned readable files. It passes credential files directly to the AWS CLI and never prints their contents. `RESEND_API_KEY_FILE` is optional and handled the same way.
 
+
+## The PHI gate on the voice vendor
+
+`ELEVENLABS_BAA_ATTESTED` and `ELEVENLABS_ZERO_RETENTION` are not feature flags.
+They are operator attestations about facts this process cannot check for itself:
+one is a signed contract, the other is a setting in ElevenLabs' dashboard.
+
+ElevenLabs' own HIPAA documentation requires **both** before an agent may handle
+PHI, and is explicit that an agent without Zero Retention Mode "is no longer
+deemed a covered service for purposes of the BAA". A BAA is Enterprise-tier only.
+
+With `NODE_ENV=production`, both `/voice/call-initiation` and `/voice/post-call`
+return **503 `VOICE_VENDOR_NOT_CLEARED`** until both variables are exactly the
+string `true`. Since the initiation webhook is what answers an inbound call, an
+unattested production deployment does not take calls at all — which is the
+intended failure mode. Outside production the routes serve and log a warning, so
+local runs and the offline harness are unaffected.
+
+Only the literal string `true` counts. A gate that opens on `yes`, `1` or
+`TRUE ` is a gate that opens on a typo.
+
 ## Protected endpoints
 
-Authentication applies to every voice tool, including current date, availability, appointment lookup and writes, callbacks, service search, and deep dependency diagnostics. Send `x-tool-auth: <secret>` unless `TOOL_AUTH_HEADER` is changed. `/v1` routes and legacy aliases enforce the same policy. Only `/`, `/health`, `/clinic-info`, and `/services` remain open and non-mutating. The service mounts no webhook route: telephony is handled in-process rather than by a third-party orchestrator calling back in.
+Authentication applies to every voice tool, including current date, availability, appointment lookup and writes, callbacks, service search, and deep dependency diagnostics. Send `x-tool-auth: <secret>` unless `TOOL_AUTH_HEADER` is changed. `/v1` routes and legacy aliases enforce the same policy. Only `/`, `/health`, `/clinic-info`, and `/services` remain open and non-mutating. The two `/voice/*` vendor webhooks are separate from the tool boundary: call initiation requires its configured shared-secret header, post-call delivery requires a valid ElevenLabs HMAC signature, and production places both behind the PHI-clearance gate above.
 
 Appointment lookup also requires the call handler to send the verified caller number in `x-caller-phone`. The supplied number must match the booked number. A unique match first returns only a short-lived `appointment_token`; a second lookup call must present that token before details are disclosed. Reschedule and cancellation require the same token and re-check it against the actual caller number. Ambiguous matches disclose no appointment details and must be narrowed by original date and exact time.
 

@@ -6,7 +6,13 @@ import { initSheets } from './db/client';
 import appointmentsRouter from './routes/appointments';
 import callbacksRouter from './routes/callbacks';
 import toolsRouter from './routes/tools';
+import voiceRouter from './routes/voice';
 import { toolAuth } from './middleware/tool-auth';
+import {
+  requireVoiceVendorClearance,
+  verifyInitiationSecret,
+  verifyPostCallSignature,
+} from './middleware/voice-webhook';
 import { createRateLimiter } from './middleware/rate-limit';
 import { createIdempotencyMiddleware } from './middleware/idempotency';
 import { reconcilePendingAppointmentMutations } from './services/booking';
@@ -34,11 +40,37 @@ export function createApp(): express.Express {
       callback(null, allowed);
     },
   }));
+  const captureRawBody = (req: express.Request, _res: express.Response, buffer: Buffer): void => {
+    (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+  };
+
+  // The voice vendor's two hooks, mounted ahead of the global body parser so
+  // they get their own, larger limit. A post-call payload is an entire
+  // transcript and does not fit in the 32kb the tool endpoints are capped at;
+  // a 413 here would make the vendor retry and then disable the webhook.
+  //
+  // Each carries its own authentication — one vendor-signed, one a shared
+  // secret we issue — and both sit behind the PHI clearance gate. Neither is a
+  // tool call, so neither is checked against the tool secret.
+  const voiceJson = express.json({ limit: config.voice.bodyLimit, verify: captureRawBody });
+  app.post(
+    '/voice/call-initiation',
+    requireVoiceVendorClearance,
+    voiceJson,
+    verifyInitiationSecret,
+    (req, res, next) => voiceRouter(req, res, next),
+  );
+  app.post(
+    '/voice/post-call',
+    requireVoiceVendorClearance,
+    voiceJson,
+    verifyPostCallSignature,
+    (req, res, next) => voiceRouter(req, res, next),
+  );
+
   app.use(express.json({
     limit: config.security.requestBodyLimit,
-    verify(req, _res, buffer) {
-      (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
-    },
+    verify: captureRawBody,
   }));
 
   const rateLimiter = createRateLimiter({

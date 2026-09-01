@@ -21,6 +21,8 @@
     "local:dynamo:down": "docker compose -f docker-compose.local.yml down",
     "agent:tools": "node scripts/agent-tools-for.mjs",
     "agent:prompt": "node scripts/render-agent.mjs",
+    "elevenlabs:voices": "node scripts/elevenlabs-voices.mjs",
+    "elevenlabs:provision": "node scripts/elevenlabs-provision.mjs",
     "new-tenant": "node scripts/new-tenant.mjs",
     "eval:static": "python3 evals/eval_runner.py --repo . --config evals/config.json --static",
     "eval:transcripts": "python3 evals/eval_runner.py --repo . --config evals/config.json --transcripts harness/transcripts/voice-agent.jsonl"

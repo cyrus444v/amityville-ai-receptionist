@@ -130,6 +130,37 @@ const promptSchema = z
 
 export type TenantPrompt = z.infer<typeof promptSchema>;
 
+/**
+ * How this clinic sounds, and which voice-vendor knobs it sets.
+ *
+ * Optional as a whole: a clinic that has not been given a phone voice yet is
+ * still a valid clinic, and every field below has a defensible default except
+ * the voice id itself — which has none, because choosing how a practice sounds
+ * to its patients is theirs to decide, not a fallback.
+ */
+const voiceSchema = z
+  .object({
+    elevenlabs_voice_id: z.string().min(1),
+    tts_model_id: z.string().min(1).optional(),
+    llm: z.string().min(1).optional(),
+    language: z.string().min(2).optional(),
+    /** 0 is erratic, 1 is flat. The middle is where a receptionist lives. */
+    stability: z.number().min(0).max(1).optional(),
+    speed: z.number().min(0.7).max(1.2).optional(),
+    similarity_boost: z.number().min(0).max(1).optional(),
+    /** The first line spoken. Generated from spoken_name when absent. */
+    greeting: z.string().min(1).optional(),
+    /** Where an emergency or an explicit ask for a human is transferred. */
+    transfer_number: z.string().min(1).optional(),
+    /** Extra recogniser hints beyond the service and provider names. */
+    asr_keywords: z.array(z.string()).optional(),
+    /** How long the vendor keeps conversation records. See the PHI note in docs/VOICE_PIPELINE.md. */
+    retention_days: z.number().int().min(-1).optional(),
+  })
+  .strict();
+
+export type TenantVoice = z.infer<typeof voiceSchema>;
+
 export const tenantSchema = z
   .object({
     slug: z.string().regex(SLUG, 'slug must be a lower-case slug'),
@@ -160,6 +191,7 @@ export const tenantSchema = z
       })
       .strict(),
     prompt: promptSchema,
+    voice: voiceSchema.optional(),
     services: z.array(serviceSchema).min(1, 'a clinic needs at least one service'),
   })
   .strict()
