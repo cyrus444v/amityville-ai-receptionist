@@ -177,8 +177,14 @@ export async function updateCalendarEvent(
 // ----------------------------------------------------------------
 export async function cancelCalendarEvent(eventId: string): Promise<void> {
   const calendar = getCalendarClient();
-  await calendar.events.delete({
-    calendarId: config.google.calendarId,
-    eventId,
-  });
+  try {
+    await calendar.events.delete({
+      calendarId: config.google.calendarId,
+      eventId,
+    });
+  } catch (error) {
+    const status = (error as { code?: number; response?: { status?: number } }).response?.status
+      ?? (error as { code?: number }).code;
+    if (status !== 404 && status !== 410) throw error;
+  }
 }

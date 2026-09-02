@@ -1,0 +1,31 @@
+# Local-only dependencies for the voice agent.
+#
+# Brings up DynamoDB Local so slot reservation, idempotency, mutation state and
+# rate limiting run against a real shared store instead of the in-process
+# fallback. Nothing here touches AWS.
+#
+#   docker compose -f docker-compose.local.yml up -d
+#   npm run local:dynamo:init
+#   COORDINATION_TABLE=ai-receptionist-local-coordination \
+#     AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000 \
+#     AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local \
+#     npm run dev:local
+
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:2.5.2
+    container_name: aivance-dynamodb-local
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/data"]
+    working_dir: /home/dynamodblocal
+    ports:
+      - "8000:8000"
+    volumes:
+      - dynamodb-local-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000 -o /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dynamodb-local-data:

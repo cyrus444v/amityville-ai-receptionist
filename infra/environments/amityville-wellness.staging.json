@@ -1,0 +1,52 @@
+{
+  "environment": "staging",
+  "tenant": "amityville-wellness",
+  "description": "Isolated rehearsal environment. Must never reference the live calendar, the live appointment spreadsheet, or the live voice agent.",
+  "readonlyRootFilesystem": true,
+  "secretArnSuffixes": {
+    "TOOL_AUTH_SECRET": "i7iDWG",
+    "APPOINTMENT_TOKEN_SECRET": "LojFsi",
+    "GOOGLE_CREDENTIALS_BASE64": "pCfWuU",
+    "RESEND_API_KEY": "zkt30L"
+  },
+  "forbiddenValues": {
+    "GOOGLE_CALENDAR_ID": ["cyrus.lang1@gmail.com"],
+    "GOOGLE_SPREADSHEET_ID": ["1Nn7nMjzC0SkqP2PcjE69i_J-tmGiDUsXyCIpSjCDTjs"]
+  },
+  "values": {
+    "SERVICE": "ai-receptionist",
+    "ENVIRONMENT": "staging",
+    "NODE_ENV": "production",
+    "AWS_ACCOUNT_ID": "668764275927",
+    "AWS_REGION": "us-east-1",
+    "TASK_CPU": "512",
+    "TASK_MEMORY": "1024",
+
+    "BUSINESS_NAME": "Amityville Wellness (STAGING - do not treat as real)",
+    "BUSINESS_PHONE": "+1 631-691-0200",
+    "BUSINESS_ADDRESS": "209 Broadway, Amityville, NY 11701",
+    "BUSINESS_WEBSITE": "https://www.amityvillewellness.com",
+    "TIMEZONE": "America/New_York",
+    "DEFAULT_APPOINTMENT_DURATION": "60",
+
+    "GOOGLE_CALENDAR_ID": "82b1cc1bf34afc92c5aaf4046971649c92b292d0ee6da4210bd0d577cdc5ae7c@group.calendar.google.com",
+    "GOOGLE_SPREADSHEET_ID": "1jXhk_QTHM2zL7F0BiHsIb2CggSJipYGebZeQBb-lbTs",
+    "GOOGLE_IMPERSONATE_EMAIL": "",
+
+    "EMAIL_FROM": "onboarding@resend.dev",
+    "EMAIL_REPLY_TO": "cyrus.lang@ai-vance.de",
+
+    "TOOL_AUTH_HEADER": "x-tool-auth",
+    "TOOL_AUTH_VERSION": "v1",
+    "APPOINTMENT_TOKEN_TTL_MS": "600000",
+    "TELEPHONY_CALLER_PHONE_HEADER": "x-caller-phone",
+    "TELEPHONY_CALL_ID_HEADER": "x-call-id",
+
+    "ALLOWED_ORIGINS": "",
+    "REQUEST_BODY_LIMIT": "32kb",
+    "RATE_LIMIT_WINDOW_MS": "60000",
+    "RATE_LIMIT_MAX": "30",
+    "IDEMPOTENCY_TTL_MS": "900000",
+    "TRUST_PROXY_HOPS": "1"
+  }
+}

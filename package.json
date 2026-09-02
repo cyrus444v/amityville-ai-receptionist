@@ -4,14 +4,34 @@
   "description": "AI Receptionist Backend - Direct Google Calendar integration",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon --watch src --exec ts-node src/index.ts",
+    "dev": "node --watch -r ts-node/register src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ci": "npm run typecheck && vitest run",
+    "start": "node dist/index.js",
+    "harness": "vitest run tests/harness",
+    "infra:render": "node infra/render.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "dev:local": "node -r ts-node/register -r ./harness/local-fakes-preload.cjs harness/local-server.ts",
+    "local:check": "node scripts/local-check.mjs",
+    "local:dynamo": "docker compose -f docker-compose.local.yml up -d",
+    "local:dynamo:init": "node scripts/bootstrap-local-dynamo.mjs",
+    "local:dynamo:down": "docker compose -f docker-compose.local.yml down",
+    "agent:tools": "node scripts/agent-tools-for.mjs",
+    "agent:prompt": "node scripts/render-agent.mjs",
+    "elevenlabs:voices": "node scripts/elevenlabs-voices.mjs",
+    "elevenlabs:provision": "node scripts/elevenlabs-provision.mjs",
+    "new-tenant": "node scripts/new-tenant.mjs",
+    "eval:static": "python3 evals/eval_runner.py --repo . --config evals/config.json --static",
+    "eval:transcripts": "python3 evals/eval_runner.py --repo . --config evals/config.json --transcripts harness/transcripts/voice-agent.jsonl"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1112.0",
     "chrono-node": "^2.9.1",
     "cors": "^2.8.5",
     "dayjs": "^1.11.20",
@@ -24,9 +44,13 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.2",
-    "nodemon": "^3.1.9",
+    "@types/supertest": "^6.0.3",
+    "js-yaml": "^5.3.0",
+    "supertest": "^7.1.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
   }
 }

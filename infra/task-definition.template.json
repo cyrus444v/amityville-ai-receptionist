@@ -1,0 +1,72 @@
+{
+  "family": "${SERVICE}-${ENVIRONMENT}-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "${TASK_CPU}",
+  "memory": "${TASK_MEMORY}",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${SERVICE}-${ENVIRONMENT}-task-execution",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${SERVICE}-${ENVIRONMENT}-task",
+  "containerDefinitions": [
+    {
+      "name": "${SERVICE}-backend",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${SERVICE}-backend:${IMAGE_TAG}",
+      "portMappings": [{ "containerPort": 8080, "protocol": "tcp" }],
+      "essential": true,
+      "healthCheck": {
+        "command": ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 15
+      },
+      "environment": [
+        { "name": "NODE_ENV", "value": "${NODE_ENV}" },
+        { "name": "PORT", "value": "8080" },
+
+        { "name": "BUSINESS_NAME", "value": "${BUSINESS_NAME}" },
+        { "name": "BUSINESS_PHONE", "value": "${BUSINESS_PHONE}" },
+        { "name": "BUSINESS_ADDRESS", "value": "${BUSINESS_ADDRESS}" },
+        { "name": "BUSINESS_WEBSITE", "value": "${BUSINESS_WEBSITE}" },
+        { "name": "TIMEZONE", "value": "${TIMEZONE}" },
+        { "name": "DEFAULT_APPOINTMENT_DURATION", "value": "${DEFAULT_APPOINTMENT_DURATION}" },
+
+        { "name": "COORDINATION_TABLE", "value": "${SERVICE}-${ENVIRONMENT}-coordination" },
+        { "name": "COORDINATION_REGION", "value": "${AWS_REGION}" },
+
+        { "name": "GOOGLE_CALENDAR_ID", "value": "${GOOGLE_CALENDAR_ID}" },
+        { "name": "GOOGLE_SPREADSHEET_ID", "value": "${GOOGLE_SPREADSHEET_ID}" },
+        { "name": "GOOGLE_IMPERSONATE_EMAIL", "value": "${GOOGLE_IMPERSONATE_EMAIL}" },
+
+        { "name": "EMAIL_FROM", "value": "${EMAIL_FROM}" },
+        { "name": "EMAIL_REPLY_TO", "value": "${EMAIL_REPLY_TO}" },
+
+        { "name": "TOOL_AUTH_HEADER", "value": "${TOOL_AUTH_HEADER}" },
+        { "name": "TOOL_AUTH_VERSION", "value": "${TOOL_AUTH_VERSION}" },
+        { "name": "APPOINTMENT_TOKEN_TTL_MS", "value": "${APPOINTMENT_TOKEN_TTL_MS}" },
+        { "name": "TELEPHONY_CALLER_PHONE_HEADER", "value": "${TELEPHONY_CALLER_PHONE_HEADER}" },
+        { "name": "TELEPHONY_CALL_ID_HEADER", "value": "${TELEPHONY_CALL_ID_HEADER}" },
+
+        { "name": "ALLOWED_ORIGINS", "value": "${ALLOWED_ORIGINS}" },
+        { "name": "REQUEST_BODY_LIMIT", "value": "${REQUEST_BODY_LIMIT}" },
+        { "name": "RATE_LIMIT_WINDOW_MS", "value": "${RATE_LIMIT_WINDOW_MS}" },
+        { "name": "RATE_LIMIT_MAX", "value": "${RATE_LIMIT_MAX}" },
+        { "name": "IDEMPOTENCY_TTL_MS", "value": "${IDEMPOTENCY_TTL_MS}" },
+        { "name": "TRUST_PROXY_HOPS", "value": "${TRUST_PROXY_HOPS}" }
+      ],
+      "secrets": [
+        { "name": "TOOL_AUTH_SECRET", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:${SERVICE}/${ENVIRONMENT}/TOOL_AUTH_SECRET" },
+        { "name": "APPOINTMENT_TOKEN_SECRET", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:${SERVICE}/${ENVIRONMENT}/APPOINTMENT_TOKEN_SECRET" },
+        { "name": "GOOGLE_CREDENTIALS_BASE64", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:${SERVICE}/${ENVIRONMENT}/GOOGLE_CREDENTIALS_BASE64" },
+        { "name": "RESEND_API_KEY", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:${SERVICE}/${ENVIRONMENT}/RESEND_API_KEY" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/${SERVICE}-${ENVIRONMENT}",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

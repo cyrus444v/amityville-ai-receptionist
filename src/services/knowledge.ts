@@ -1,8 +1,10 @@
-import servicesData from '../knowledge/services.json';
 import { config } from '../config';
 import type { Service } from '../types';
 
-const services = servicesData as Service[];
+// The catalogue is the clinic's, not the build's: it arrives with the tenant
+// configuration rather than being bundled at compile time, so a clinic can
+// change what it offers without a rebuild.
+const services: readonly Service[] = config.services;
 
 export function searchServices(query: string): Service[] {
   const q = query.toLowerCase().trim();
@@ -11,7 +13,7 @@ export function searchServices(query: string): Service[] {
     'what services', 'what do you offer', 'what treatments', 'what can you',
     'services', 'treatments', 'all services',
   ];
-  if (genericPhrases.some((p) => q.includes(p))) return services;
+  if (genericPhrases.some((p) => q.includes(p))) return [...services];
 
   return services.filter(
     (s) =>
@@ -23,14 +25,15 @@ export function searchServices(query: string): Service[] {
 }
 
 export function getAllServices(): Service[] {
-  return services;
+  return [...services];
 }
 
 export function getServiceByName(name: string): Service | undefined {
-  const n = name.toLowerCase();
+  const n = name.toLowerCase().trim();
   return services.find(
     (s) =>
       s.name.toLowerCase() === n ||
+      n.startsWith(`${s.name.toLowerCase()} (`) ||
       s.service_id === n ||
       s.keywords.some((k) => k.toLowerCase() === n)
   );

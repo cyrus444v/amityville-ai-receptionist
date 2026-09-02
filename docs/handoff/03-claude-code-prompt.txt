@@ -1,0 +1,51 @@
+Du übernimmst den AIVANCE Voice-Agent Build. Das Repo liegt hier und ist ab jetzt
+das Zuhause des Projekts:
+
+  /Users/cyruslang/aivance-voice-agent
+
+Branch: agent/claude-infra-20260818, origin ist GitHub
+(cyrus444v/amityville-ai-receptionist). 5 Commits auf dem gereviewten
+Sicherheits-Kandidaten 5e4e0c0.
+
+Lies zuerst, in dieser Reihenfolge:
+  README.md                        <- Überblick, Quick Start, ehrlicher Status
+  docs/CLAUDE_CODE_HANDOFF.md      <- dein Auftrag, 4 Phasen, Ground Rules
+  docs/TENANT_ARCHITECTURE.md      <- Architekturentscheidung + 10 Refactor-Schritte
+  docs/GO_LIVE.md                  <- Runbook: Testanruf, Staging, Produktion
+
+Ziel: (1) Amityville Wellness live-fähig auf echten Servern, (2) das System so
+mandantenfähig, dass eine weitere Klinik in unter einer Stunde onboardbar ist.
+
+Starte mit Phase A (Tenant-Refactor). Komplett offline verifizierbar und ändert die
+Form der Task-Definition — also vor der AWS-Arbeit, sonst deployen wir zweimal.
+tenants/amityville-wellness.json ist als Referenzform schon angelegt; die zwei
+echten Blocker sind hardcodierte Öffnungszeiten in src/config/index.ts und der
+statisch importierte Servicekatalog.
+
+Harte Regeln:
+- /Users/cyruslang/Desktop/amityville-ai-receptionist/backend NIEMALS anfassen
+  (enthält meine uncommitteten Änderungen). Lesen ok — liegt als Remote
+  "local-desktop" bereit — aber kein edit/stash/reset/commit.
+- Kein Test, Eval, Auth-Boundary oder Fail-Closed-Guard wird abgeschwächt, um grün
+  zu werden. Wenn ein Check falsch ist: Check korrigieren und begründen.
+- Kein Merge nach main, kein Produktions-Deploy und kein git push ohne dass ich in
+  dem Moment explizit zustimme.
+- Der alte Google-Service-Account-Key ist kompromittiert und liegt weiterhin in der
+  Git-History. Nicht rekonstruieren, nicht aus der History lesen. Muss in Google
+  Cloud rotiert werden, bevor Produktionsverkehr läuft.
+- Patientendaten sind PHI: keine echten Datensätze in Logs, Fixtures oder Commits.
+
+Nach jedem Schritt: npm run test:ci
+Am Ende jeder Phase zusätzlich: npm run harness, plus npm run dev:local und
+npm run local:check gegen den laufenden Server.
+
+Aktueller Stand ist grün und soll grün bleiben: build, 118 Tests, Static-Eval
+48/48, Transcript-Eval 48/48, 20/20 Local-Checks. Die Evals liegen im
+Pipeline-Controller unter ~/.codex/.chatgpt-projects/g-p-*/voice-agent-pipeline —
+von dort mit --repo /Users/cyruslang/aivance-voice-agent aufrufen.
+
+Wenn ein Build seltsam scheitert: env -u NODE_ENV davorsetzen. Auf dieser Maschine
+ist NODE_ENV=production in manchen Shells gesetzt, dann fehlt tsc.
+
+Fang an mit: kurze Bestandsaufnahme (git log, npm ci, npm run test:ci), dann Phase A
+Schritt 1. Zeig mir vor größeren Umbauten kurz den Plan.

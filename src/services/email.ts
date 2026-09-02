@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { config } from '../config';
 import { logger } from '../utils/logger';
 
 let _resend: Resend | null = null;
@@ -33,20 +34,44 @@ function formatTime(time: string): string {
   return `${hour}:${String(m).padStart(2, '0')} ${period}`;
 }
 
-export async function sendBookingConfirmation(params: ConfirmationEmailParams): Promise<void> {
-  const resend = getResend();
+export function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  })[character]!);
+}
 
-  const fromName = process.env.BUSINESS_NAME || 'Amityville Acupuncture';
-  const fromEmail = process.env.EMAIL_FROM || 'appointments@amityvilleacupuncture.com';
-  const replyTo = process.env.EMAIL_REPLY_TO || fromEmail;
+export interface RenderedEmail {
+  from: string;
+  replyTo: string;
+  subject: string;
+  html: string;
+}
+
+/**
+ * Pure so the clinic-specific parts of a confirmation — sender name, sender
+ * address, reply-to and the footer locality — can be asserted per tenant
+ * without sending anything.
+ */
+export function renderConfirmationEmail(params: ConfirmationEmailParams): RenderedEmail {
+  const fromName = config.email.fromName;
+  const fromEmail = config.email.from;
+  const replyTo = config.email.replyTo;
+  const footerLocality = config.email.footerLocality;
 
   const formattedDate = formatDate(params.date);
   const formattedTime = formatTime(params.time);
+  const safeFromName = escapeHtml(fromName);
+  const safeFooterLocality = escapeHtml(footerLocality);
+  const safeCallerName = escapeHtml(params.caller_name);
+  const safeService = escapeHtml(params.service);
 
-  const { error } = await resend.emails.send({
+  return {
     from: `${fromName} <${fromEmail}>`,
-    to: params.to,
-    replyTo: replyTo,
+    replyTo,
     subject: `Your appointment is confirmed — ${params.service} on ${formattedDate}`,
     html: `
 <!DOCTYPE html>
@@ -65,7 +90,7 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
           <tr>
             <td style="background:#2d6a4f;padding:32px 40px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;letter-spacing:0.3px;">
-                ${fromName}
+                ${safeFromName}
               </h1>
             </td>
           </tr>
@@ -73,7 +98,7 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
           <!-- Body -->
           <tr>
             <td style="padding:40px 40px 32px;">
-              <p style="margin:0 0 8px;color:#333;font-size:16px;">Hi ${params.caller_name},</p>
+              <p style="margin:0 0 8px;color:#333;font-size:16px;">Hi ${safeCallerName},</p>
               <p style="margin:0 0 32px;color:#555;font-size:15px;line-height:1.6;">
                 Your appointment has been confirmed. We look forward to seeing you!
               </p>
@@ -86,7 +111,7 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
                     <table cellpadding="0" cellspacing="0">
                       <tr>
                         <td style="padding:4px 0;color:#555;font-size:14px;width:80px;">Service</td>
-                        <td style="padding:4px 0;color:#1a1a1a;font-size:14px;font-weight:600;">${params.service}</td>
+                        <td style="padding:4px 0;color:#1a1a1a;font-size:14px;font-weight:600;">${safeService}</td>
                       </tr>
                       <tr>
                         <td style="padding:4px 0;color:#555;font-size:14px;">Date</td>
@@ -114,7 +139,7 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
           <!-- Footer -->
           <tr>
             <td style="background:#fafafa;border-top:1px solid #eee;padding:20px 40px;text-align:center;">
-              <p style="margin:0;color:#aaa;font-size:12px;">${fromName} · Amityville, NY</p>
+              <p style="margin:0;color:#aaa;font-size:12px;">${safeFromName} · ${safeFooterLocality}</p>
             </td>
           </tr>
 
@@ -125,6 +150,19 @@ export async function sendBookingConfirmation(params: ConfirmationEmailParams): 
 </body>
 </html>
     `.trim(),
+  };
+}
+
+export async function sendBookingConfirmation(params: ConfirmationEmailParams): Promise<void> {
+  const resend = getResend();
+  const { from, replyTo, subject, html } = renderConfirmationEmail(params);
+
+  const { error } = await resend.emails.send({
+    from,
+    to: params.to,
+    replyTo,
+    subject,
+    html,
   });
 
   if (error) {

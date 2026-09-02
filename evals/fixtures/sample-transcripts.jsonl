@@ -1,0 +1,2 @@
+{"scenario_id":"service_question","turns":[{"role":"caller","text":"What do you offer for sports recovery?"},{"role":"agent","text":"We offer sports recovery acupuncture. Would you like to book that?"}],"tool_calls":[{"name":"search_services","arguments":{"query":"sports recovery"}}],"outcome":{"grounded_answer":true}}
+

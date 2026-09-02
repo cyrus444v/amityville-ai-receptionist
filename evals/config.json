@@ -1,0 +1,15 @@
+{
+  "_comment": "Configuration for evals/eval_runner.py. Mirrors the pipeline controller's config so the voice/security evals are reproducible from inside this repository.",
+  "expected_tools": [
+    "get_current_date",
+    "check_availability",
+    "create_appointment",
+    "reschedule_appointment",
+    "cancel_appointment",
+    "create_callback",
+    "search_services"
+  ],
+  "production_hosts": [
+    "api.amityvillewellness.com"
+  ]
+}

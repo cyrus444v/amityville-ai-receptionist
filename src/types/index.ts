@@ -5,6 +5,7 @@ export interface Appointment {
   email?: string;
   date_of_birth?: string;
   is_new_patient?: boolean;
+  referral_source?: string;
   service_id?: string;
   service_name: string;
   appointment_date: string;   // YYYY-MM-DD
