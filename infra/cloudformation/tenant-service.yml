@@ -76,8 +76,10 @@ Parameters:
     AllowedValues: ['yes', 'no']
     Default: 'no'
     Description: >
-      Set to yes only if this cluster does not exist yet. Something already serves
-      clinic #1, so reconcile against the account before changing this.
+      Whether this stack declares the cluster. Set from ownership, not existence:
+      yes when this stack already owns the cluster or nothing owns it, no only
+      when the cluster exists outside this stack. Flipping yes -> no for a
+      cluster this stack owns deletes it.
   BootstrapTaskDefinitionArn:
     Type: String
     Default: ''
@@ -104,8 +106,10 @@ Parameters:
     AllowedValues: ['yes', 'no']
     Default: 'no'
     Description: >
-      Set to yes only in the first stack in the account. GitHub's OIDC provider
-      is account-global; creating it twice fails.
+      Whether this stack declares GitHub's account-global OIDC provider. Creating
+      it twice fails, so this is no when another stack owns it — but yes, not no,
+      when this stack owns it. Flipping yes -> no deletes the provider and every
+      deploy role trusting it stops validating tokens.
   CreateDeployRole:
     Type: String
     AllowedValues: ['yes', 'no']
