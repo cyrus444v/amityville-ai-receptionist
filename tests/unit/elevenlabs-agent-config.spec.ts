@@ -73,7 +73,12 @@ describe('conversation configuration', () => {
   });
 
   it('refuses to build without a voice the clinic actually chose', () => {
-    expect(() => buildConversationConfig(base, PROMPT)).toThrow(/elevenlabs_voice_id/);
+    // Construct the absence rather than borrowing it from a real tenant file.
+    // This used to pass `base` and relied on amityville-wellness having no
+    // voice yet; the day that clinic chose one, the test broke for a reason
+    // that had nothing to do with the behaviour under test.
+    const { voice: _chosen, ...voiceless } = base as Record<string, unknown>;
+    expect(() => buildConversationConfig(voiceless, PROMPT)).toThrow(/elevenlabs_voice_id/);
   });
 
   it('lets a clinic override the voice knobs it cares about', () => {
