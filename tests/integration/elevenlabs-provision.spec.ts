@@ -13,8 +13,8 @@
 import { execFile } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import { promisify } from 'node:util';
-import { resolve } from 'node:path';
-import { rmSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { readFileSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -134,10 +134,16 @@ function provision(extra: string[] = []) {
   });
 }
 
+// A tenant that has genuinely not chosen a voice yet. This deliberately does
+// not reuse SLUG: that clinic picked a voice on 3 September 2026, and the test
+// then asserted the opposite of reality. The precondition below fails loudly if
+// this tenant ever picks one too, instead of the test quietly inverting.
+const VOICELESS_SLUG = 'riverside-physio';
+
 function provisionWithoutVoice(extra: string[] = []) {
   return execFileAsync('node', [
     'scripts/elevenlabs-provision.mjs',
-    '--tenant', SLUG,
+    '--tenant', VOICELESS_SLUG,
     '--base-url', 'https://api-test.example.com',
     ...extra,
   ], {
@@ -154,6 +160,13 @@ function provisionWithoutVoice(extra: string[] = []) {
 describe('elevenlabs-provision', () => {
   it('fails before any API request when no voice has been chosen', async () => {
     resetState();
+    const fixture = JSON.parse(
+      readFileSync(join(repoRoot, 'tenants', `${VOICELESS_SLUG}.json`), 'utf8'),
+    );
+    expect(
+      fixture.voice?.elevenlabs_voice_id,
+      `${VOICELESS_SLUG} has chosen a voice — this test needs a tenant that has not`,
+    ).toBeUndefined();
     await expect(provisionWithoutVoice(['--apply'])).rejects.toMatchObject({
       stderr: expect.stringContaining('nothing was created'),
     });
