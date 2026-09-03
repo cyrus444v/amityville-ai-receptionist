@@ -127,9 +127,11 @@ here has ever been checked against reality.
    — cluster, service, target group, listener rule, listener certificate, task
    security group — are written. What remains is the part that needs the account:
    fill in `VpcId`, `TaskSubnetIds`, `PublicSubnetIds`, `CertificateArn`,
-   `ClusterName` and `ListenerRulePriority` from what is really there, and **import
-   the resources that already exist rather than creating duplicates** — that is why
-   `CreateCluster` defaults to `no`.
+   `ClusterName` and `ListenerRulePriority` from what is really there. Leave the
+   `Create*` flags to `scripts/lib/preflight.sh`: they are resolved by **ownership,
+   not existence**. A resource this stack already owns stays `yes`, because `no`
+   drops its CloudFormation condition and the next update deletes it. Only a
+   resource that exists *outside* the stack gets `no`, since it cannot be adopted.
 4. Validate before applying anything:
    ```bash
    aws cloudformation validate-template --template-body file://infra/cloudformation/tenant-service.yml
