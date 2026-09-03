@@ -21,6 +21,7 @@ import {
   verifyAppointmentAccessToken,
 } from '../services/appointment-access';
 import { getServiceByName } from '../services/knowledge';
+import { dayOfWeekMismatch } from '../services/call-context';
 
 const router = Router();
 
@@ -43,6 +44,17 @@ router.post('/check-availability', async (req: Request, res: Response) => {
   }
 
   const { date, time, duration_minutes, timezone: tz } = parsed.data;
+
+  // The date is the model's conversion; expected_day_of_week is what the caller
+  // actually said. They are derived independently, so a disagreement means the
+  // conversion is wrong — answer with that rather than with an availability.
+  const mismatch = dayOfWeekMismatch(date, parsed.data.expected_day_of_week);
+  if (mismatch) {
+    logger.warn('check-availability rejected a date whose weekday contradicts the caller', {
+      date, day_of_week: mismatch.day_of_week, expected_day_of_week: mismatch.expected_day_of_week,
+    });
+    return res.json({ success: false, available: false, status: 'DAY_OF_WEEK_MISMATCH', ...mismatch });
+  }
 
   try {
     const result = await checkAvailability(
@@ -83,8 +95,18 @@ router.post('/create-appointment', async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: parsed.error.flatten() });
   }
 
+  const { expected_day_of_week, ...appointment } = parsed.data;
+  const mismatch = dayOfWeekMismatch(appointment.date, expected_day_of_week);
+  if (mismatch) {
+    logger.warn('create-appointment refused a date whose weekday contradicts the caller', {
+      date: appointment.date, day_of_week: mismatch.day_of_week,
+      expected_day_of_week: mismatch.expected_day_of_week,
+    });
+    return res.status(400).json({ success: false, ...mismatch });
+  }
+
   try {
-    const result = await createAppointment(parsed.data);
+    const result = await createAppointment(appointment);
     return res.status(result.success ? 200 : 409).json(result);
   } catch (err) {
     logger.error('create-appointment failed', { error: (err as Error).message });

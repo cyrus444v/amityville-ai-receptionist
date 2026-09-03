@@ -21,12 +21,21 @@ function isRealTime(value: string): boolean {
 const dateField = z.string().refine(isRealDate, 'Date must be a valid YYYY-MM-DD date');
 const timeField = z.string().refine(isRealTime, 'Time must be a valid HH:MM time');
 
+/**
+ * The weekday the caller named, in their own words ("Wednesday", "next Wed").
+ *
+ * Optional, and deliberately not validated as an enum: an unrecognised value is
+ * treated as absent rather than as a rejection. See dayOfWeekMismatch.
+ */
+const expectedDayOfWeekField = z.string().max(20).optional();
+
 export const CheckAvailabilitySchema = z.object({
-  date:             dateField,
-  time:             timeField.optional(),
-  service:          z.string().optional(),
-  duration_minutes: z.number().int().min(15).max(480).optional(),
-  timezone:         z.string().optional(),
+  date:                 dateField,
+  time:                 timeField.optional(),
+  service:              z.string().optional(),
+  duration_minutes:     z.number().int().min(15).max(480).optional(),
+  timezone:             z.string().optional(),
+  expected_day_of_week: expectedDayOfWeekField,
 });
 
 const optionalText = (max: number) => z.string().trim().min(1).max(max).optional();
@@ -46,6 +55,7 @@ export const CreateAppointmentSchema = z.object({
   duration_minutes: z.number().int().min(15).max(480).optional(),
   timezone:         z.string().optional(),
   notes:            z.string().max(500).optional(),
+  expected_day_of_week: expectedDayOfWeekField,
   sport:            optionalText(100),
   injury:           optionalText(300),
   accident:         optionalText(300),

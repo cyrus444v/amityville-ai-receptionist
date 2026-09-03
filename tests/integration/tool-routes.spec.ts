@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const serviceMocks = vi.hoisted(() => ({
   checkAvailability: vi.fn(),
@@ -175,6 +175,76 @@ describe('public voice-tool boundary', () => {
     await request(app).post('/create-appointment').set(auth).set('Idempotency-Key', 'retry-1')
       .send({ ...validCreate(), time: '11:00' }).expect(409)
       .expect({ success: false, error: 'IDEMPOTENCY_KEY_REUSED' });
+  });
+
+  /**
+   * The boundary half of the 3 September 2026 near-miss. The caller said
+   * "Wednesday"; the agent sent the 10th, which is a Thursday. With the two
+   * facts arriving separately the backend can see the contradiction, and the
+   * only safe thing to do with a contradiction is refuse to act on it.
+   */
+  describe('a date that contradicts the weekday the caller said', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-03T14:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('answers check_availability with the contradiction instead of an availability', async () => {
+      const response = await request(createApp()).post('/check-availability').set(auth)
+        .send({ date: '2026-09-10', time: '14:00', expected_day_of_week: 'Wednesday' })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        available: false,
+        status: 'DAY_OF_WEEK_MISMATCH',
+        day_of_week: 'Thursday',
+        expected_day_of_week: 'Wednesday',
+        corrected_date: '2026-09-09',
+      });
+      expect(serviceMocks.checkAvailability).not.toHaveBeenCalled();
+    });
+
+    it('refuses to write the appointment', async () => {
+      const response = await request(createApp()).post('/create-appointment').set(auth)
+        .send({ ...validCreate(), date: '2026-09-10', expected_day_of_week: 'Wednesday' })
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        error: 'DAY_OF_WEEK_MISMATCH',
+        corrected_date: '2026-09-09',
+      });
+      expect(serviceMocks.createAppointment).not.toHaveBeenCalled();
+    });
+
+    it('books normally once the date and the weekday agree', async () => {
+      await request(createApp()).post('/create-appointment').set(auth)
+        .send({ ...validCreate(), date: '2026-09-09', expected_day_of_week: 'Wednesday' })
+        .expect(200);
+
+      expect(serviceMocks.createAppointment).toHaveBeenCalledWith(
+        expect.objectContaining({ date: '2026-09-09' }),
+      );
+      // The cross-check is not part of the appointment; it never reaches storage.
+      expect(serviceMocks.createAppointment.mock.calls[0][0]).not.toHaveProperty('expected_day_of_week');
+    });
+  });
+
+  it('hands the agent a calendar it can read dates off instead of calculating them', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-03T14:00:00.000Z'));
+    try {
+      const { body } = await request(createApp()).get('/current-date').set(auth).expect(200);
+
+      expect(body.today).toEqual({ date: '2026-09-03', day_of_week: 'Thursday' });
+      expect(body.days).toHaveLength(14);
+      expect(body.days[0]).toMatchObject({ date: '2026-09-03', label: 'today', is_open: false });
+      expect(body.next_by_day_of_week.Wednesday).toBe('2026-09-09');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('accepts every declared voice-tool contract without network access', async () => {
