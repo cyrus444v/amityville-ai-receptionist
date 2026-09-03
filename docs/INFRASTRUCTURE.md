@@ -359,6 +359,16 @@ aws cloudformation deploy \
 Then the same command for `production` with `CreateGitHubOidcProvider=no` (the
 provider is account-global; creating it twice fails).
 
+The `Create*` flags answer **ownership, not existence**. `scripts/lib/preflight.sh`
+resolves them: a resource the stack already owns stays `yes`, because `no` drops
+its CloudFormation condition and the next update deletes it; a resource that
+exists outside the stack gets `no`, because it cannot be adopted; anything absent
+gets `yes`. The production `no` above is the middle case — staging's stack owns
+the provider. Setting `no` for something the stack still owns aborts the run
+rather than deploying a deletion. On 2 September 2026, before that rule existed,
+an existence check destroyed the staging cluster and the OIDC provider in a
+single update.
+
 Set `AWS_DEPLOY_ROLE_ARN` and `SERVICE_BASE_URL` as *variables* on each GitHub
 environment from the stack outputs. Require a reviewer on `production`.
 
