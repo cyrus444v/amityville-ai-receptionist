@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# A stub `aws` for tests/infra/preflight.spec.ts. It answers only the calls
+# scripts/provision-staging.sh makes during --dry-run, and it answers them from
+# environment variables so a test can pose any account/stack shape:
+#
+#   FAKE_STACK_STATUS     status of ai-receptionist-staging, empty = no stack
+#   FAKE_OWNED            space-separated logical ids the stack owns
+#   FAKE_OIDC_IN_ACCOUNT  yes|no  is GitHub's OIDC provider in the account
+#   FAKE_CLUSTER_STATUS   ACTIVE|INACTIVE|MISSING
+#
+# Everything else is a fixed happy answer, so the tests are about the create
+# flags and nothing else.
+
+set -euo pipefail
+
+service="${1:-}"
+operation="${2:-}"
+
+owns() {
+  local needle="$1" logical
+  for logical in ${FAKE_OWNED:-}; do
+    [ "$logical" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+# The logical id the caller filtered on, if any.
+logical_arg=''
+prev=''
+for arg in "$@"; do
+  [ "$prev" = '--logical-resource-id' ] && logical_arg="$arg"
+  prev="$arg"
+done
+
+case "$service $operation" in
+  'sts get-caller-identity') echo "${FAKE_ACCOUNT_ID:-668764275927}" ;;
+
+  'acm describe-certificate') echo "${FAKE_CERT_STATUS:-ISSUED}" ;;
+
+  'cloudformation validate-template') echo 'a template' ;;
+
+  'cloudformation describe-stacks')
+    # Real describe-stacks exits non-zero for a stack that does not exist.
+    [ -n "${FAKE_STACK_STATUS:-}" ] || { echo 'Stack does not exist' >&2; exit 254; }
+    echo "$FAKE_STACK_STATUS"
+    ;;
+
+  'cloudformation describe-stack-resources')
+    [ -n "${FAKE_STACK_STATUS:-}" ] || { echo 'Stack does not exist' >&2; exit 254; }
+    if owns "$logical_arg"; then
+      echo 'UPDATE_COMPLETE'
+    else
+      # CloudFormation errors rather than returning an empty list.
+      echo "Resource $logical_arg does not exist for stack" >&2
+      exit 254
+    fi
+    ;;
+
+  'iam list-open-id-connect-providers')
+    [ "${FAKE_OIDC_IN_ACCOUNT:-no}" = yes ] \
+      && echo 'arn:aws:iam::668764275927:oidc-provider/token.actions.githubusercontent.com'
+    ;;
+
+  'ecs describe-clusters')
+    case "${FAKE_CLUSTER_STATUS:-MISSING}" in
+      MISSING) echo 'None' ;;   # what --output text prints for a null result
+      *) echo "$FAKE_CLUSTER_STATUS" ;;
+    esac
+    ;;
+
+  *)
+    echo "fake-aws: unexpected call: $*" >&2
+    exit 99
+    ;;
+esac

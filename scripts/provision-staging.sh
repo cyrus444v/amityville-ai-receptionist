@@ -15,6 +15,11 @@
 # It never reads, writes or prints a secret value. The two generated secrets are
 # minted by CloudFormation inside AWS; the three operator-supplied ones are
 # created empty and filled with `aws secretsmanager put-secret-value` by hand.
+#
+# CREATE_CLUSTER and CREATE_OIDC are resolved from the account and the stack and
+# should be left alone. They can be forced with an environment variable for a
+# deliberate migration, but a forced 'no' for a resource the stack still owns is
+# refused: that is a delete, and it has to be done on purpose, not by flag.
 
 set -euo pipefail
 
@@ -34,6 +39,9 @@ LISTENER_RULE_PRIORITY="${LISTENER_RULE_PRIORITY:-100}"
 ALB_STACK="voice-agent-${ENVIRONMENT}-alb"
 TENANT_STACK="${SERVICE_NAME}-${ENVIRONMENT}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# shellcheck source=scripts/lib/preflight.sh
+. "${REPO_ROOT}/scripts/lib/preflight.sh"
 
 DRY_RUN=no
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=yes
@@ -69,26 +77,42 @@ if [ "$CERT_STATUS" != "ISSUED" ]; then
 fi
 echo "ok    certificate ISSUED for $HOST_NAME"
 
-# GitHub's OIDC provider is account-global; creating it twice fails the stack.
-if aws iam list-open-id-connect-providers \
-     --query "OpenIDConnectProviderList[?contains(Arn, 'token.actions.githubusercontent.com')]" \
-     --output text | grep -q .; then
-  CREATE_OIDC=no
-  echo "ok    GitHub OIDC provider already exists — CreateGitHubOidcProvider=no"
+# The Create* flags decide whether the stack declares a resource, so the
+# question they answer is "does this stack already own it?", never "does it
+# exist?". See scripts/lib/preflight.sh for the incident this rule comes from.
+
+if cfn_stack_exists "$REGION" "$TENANT_STACK"; then
+  STACK_PRESENT=yes
+  echo "ok    stack $TENANT_STACK exists — resolving create flags by ownership"
 else
-  CREATE_OIDC=yes
-  echo "ok    no GitHub OIDC provider yet — CreateGitHubOidcProvider=yes"
+  STACK_PRESENT=no
+  echo "ok    stack $TENANT_STACK does not exist yet — nothing is owned"
 fi
 
-# The cluster may already exist from an earlier pass.
-if aws ecs describe-clusters --region "$REGION" --clusters "$CLUSTER_NAME" \
-     --query 'clusters[?status==`ACTIVE`]' --output text | grep -q .; then
-  CREATE_CLUSTER=no
-  echo "ok    cluster $CLUSTER_NAME exists — CreateCluster=no"
-else
-  CREATE_CLUSTER=yes
-  echo "ok    cluster $CLUSTER_NAME does not exist — CreateCluster=yes"
+OIDC_OWNED=no
+CLUSTER_OWNED=no
+if [ "$STACK_PRESENT" = yes ]; then
+  if cfn_stack_owns "$REGION" "$TENANT_STACK" GitHubOidcProvider; then OIDC_OWNED=yes; fi
+  if cfn_stack_owns "$REGION" "$TENANT_STACK" Cluster; then CLUSTER_OWNED=yes; fi
 fi
+
+OIDC_IN_ACCOUNT=no
+if iam_github_oidc_provider_exists; then OIDC_IN_ACCOUNT=yes; fi
+
+# INACTIVE is a deleted cluster ECS still answers for. It is not "exists".
+CLUSTER_IN_ACCOUNT=no
+if ecs_cluster_is_active "$REGION" "$CLUSTER_NAME"; then CLUSTER_IN_ACCOUNT=yes; fi
+
+CREATE_OIDC="${CREATE_OIDC:-$(resolve_create_flag "$OIDC_OWNED" "$OIDC_IN_ACCOUNT")}"
+CREATE_CLUSTER="${CREATE_CLUSTER:-$(resolve_create_flag "$CLUSTER_OWNED" "$CLUSTER_IN_ACCOUNT")}"
+
+echo "ok    CreateGitHubOidcProvider=$CREATE_OIDC ($(explain_create_flag "$OIDC_OWNED" "$OIDC_IN_ACCOUNT" "$TENANT_STACK"))"
+echo "ok    CreateCluster=$CREATE_CLUSTER ($(explain_create_flag "$CLUSTER_OWNED" "$CLUSTER_IN_ACCOUNT" "$TENANT_STACK"))"
+
+# A flag that drops to 'no' for a resource the stack still owns is a delete.
+# Stop, whether it came from the resolution above or from an operator override.
+assert_flag_keeps_owned CreateGitHubOidcProvider "$OIDC_OWNED" "$CREATE_OIDC" "$TENANT_STACK" || exit 1
+assert_flag_keeps_owned CreateCluster "$CLUSTER_OWNED" "$CREATE_CLUSTER" "$TENANT_STACK" || exit 1
 
 # --------------------------------------------------------------- validation
 
