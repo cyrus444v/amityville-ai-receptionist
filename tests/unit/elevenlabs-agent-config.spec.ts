@@ -35,6 +35,15 @@ describe('conversation configuration', () => {
     expect(config.tts.agent_output_audio_format).toBe('ulaw_8000');
   });
 
+  it('names an ASR provider the vendor still accepts', () => {
+    // 'elevenlabs' (Original ASR) was withdrawn on 4 September 2026. Sending it
+    // fails the whole provisioning run with original_asr_removed, after the
+    // tools have already been updated — so the workspace is left half-applied.
+    // Nothing else in the suite reaches this field.
+    expect(config.asr.provider).toBe('scribe_realtime');
+    expect(config.asr.provider).not.toBe('elevenlabs');
+  });
+
   it('runs the reviewed prompt verbatim and suppresses the vendor persona', () => {
     expect(config.agent.prompt.prompt).toBe(PROMPT);
     // The reviewed prompt loses to a stock "helpful assistant" persona if this
