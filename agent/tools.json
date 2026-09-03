@@ -1,7 +1,7 @@
 [
   {
     "name": "get_current_date",
-    "description": "Returns today's date, day of week, and current time in Eastern Time. Call this at the START of any booking, rescheduling, or availability check — before calculating relative dates like 'tomorrow', 'next Wednesday', or 'this Friday'. Never guess the date without calling this first.",
+    "description": "Returns the calendar the agent must read every date out of. Call this at the START of any booking, rescheduling, or availability check, before any date is spoken. It returns today's date, the current time, and `days`: today plus the next 13 days, each already carrying its date, its day_of_week, whether the clinic is open, and how to say it aloud. It also returns `next_by_day_of_week`, mapping each weekday name to the soonest date after today that falls on it. NEVER work a weekday or a date out yourself and NEVER count days forward: find the row and read the date and the day_of_week off it together. If a date is not in this table, say you will check and call this tool again.",
     "url": "https://api.amityvillewellness.com/current-date",
     "headers": {
       "x-tool-auth": "{{tool_auth_secret}}",
@@ -30,7 +30,7 @@
       "properties": {
         "date": {
           "type": "string",
-          "description": "The appointment date in YYYY-MM-DD format. Convert all spoken dates (e.g. 'next Tuesday', 'June 15th') to this format."
+          "description": "The appointment date in YYYY-MM-DD format, copied from a row of the get_current_date table. Never calculate it from a spoken day such as 'next Tuesday' — look that day up instead."
         },
         "time": {
           "type": "string",
@@ -43,6 +43,10 @@
         "duration_minutes": {
           "type": "integer",
           "description": "Appointment duration in minutes. Optional — defaults to the service's standard duration."
+        },
+        "expected_day_of_week": {
+          "type": "string",
+          "description": "The weekday the caller actually said, as a plain weekday name ('Wednesday'). Send it whenever the caller named a day rather than a calendar date, alongside the date you read out of get_current_date. The backend checks the two against each other and refuses the call with DAY_OF_WEEK_MISMATCH if the date you sent falls on a different weekday — which means you picked the wrong row. Never derive this from your own date; it must be the caller's word."
         }
       },
       "required": [
@@ -117,7 +121,7 @@
         },
         "date": {
           "type": "string",
-          "description": "The appointment date in YYYY-MM-DD format."
+          "description": "The appointment date in YYYY-MM-DD format, the same date check_availability just confirmed and the caller agreed to. It must come from a row of the get_current_date table."
         },
         "time": {
           "type": "string",
@@ -134,6 +138,10 @@
         "notes": {
           "type": "string",
           "description": "Sport, injury, or accident context from Step 9. Any other relevant notes."
+        },
+        "expected_day_of_week": {
+          "type": "string",
+          "description": "The weekday the caller actually said, as a plain weekday name ('Wednesday'). Send it whenever the caller named a day rather than a calendar date, alongside the date you read out of get_current_date. The backend checks the two against each other and refuses the call with DAY_OF_WEEK_MISMATCH if the date you sent falls on a different weekday — which means you picked the wrong row. Never derive this from your own date; it must be the caller's word."
         }
       },
       "required": [

@@ -37,7 +37,7 @@ describe('conversation configuration', () => {
 
   it('runs the reviewed prompt verbatim and suppresses the vendor persona', () => {
     expect(config.agent.prompt.prompt).toBe(PROMPT);
-    // 278 reviewed lines lose to a stock "helpful assistant" persona if this
+    // The reviewed prompt loses to a stock "helpful assistant" persona if this
     // flag is not set.
     expect(config.agent.prompt.ignore_default_personality).toBe(true);
   });
