@@ -1,8 +1,8 @@
 /**
  * Offline end-to-end voice-flow harness.
  *
- * Boots the real Express app and drives every Retell tool over HTTP with the
- * headers Retell sends in production. Only the three external boundaries —
+ * Boots the real Express app and drives every voice tool over HTTP with the
+ * headers the call handler sends in production. Only the three external boundaries —
  * Sheets, Calendar, mailer — are replaced with in-memory doubles, so tool auth,
  * rate limiting, idempotency, validation, caller verification, appointment
  * tokens, slot coordination and rollback all execute for real.
@@ -153,7 +153,7 @@ describe('offline voice-flow harness', () => {
     expect(HARNESS_CB).toEqual(CB);
   });
 
-  it('books a new patient end to end and persists every Retell field', async () => {
+  it('books a new patient end to end and persists every intake field', async () => {
     const app = await freshApp();
     const call = newCall(app, 'booking_new_patient');
 

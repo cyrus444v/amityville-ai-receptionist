@@ -1,31 +1,30 @@
 # From here to a working voice agent
 
-> **Superseded where it concerns telephony (2026-08-26).** Every step below that
-> configures a Retell agent, points a webhook at `/retell/webhook`, or sets a
-> `tool_auth_secret` dynamic variable no longer applies: Retell has been removed
-> from the service, the webhook route is deleted, and the call headers are now
-> `x-call-id` and `x-caller-phone`. The self-hosted call handler that replaces it
-> is specified in `docs/VOICE_PIPELINE.md` and does not exist yet, so **there is
-> currently no procedure for placing a real call.**
+> **Rewritten around ElevenLabs Agents (2026-09-02).** The agent — ASR,
+> turn-taking, LLM, TTS and the telephony leg — runs on ElevenLabs, and is
+> created by `scripts/elevenlabs-provision.mjs` rather than configured by hand
+> in a dashboard. The call headers are `x-call-id` and `x-caller-phone`; the two
+> inbound hooks are `/voice/call-initiation` and `/voice/post-call`. See
+> `docs/VOICE_PIPELINE.md` for the design and the open items behind it.
 >
-> What remains valid and is still the live runbook: the AWS phases — staging
-> deploy, secret handling, the production cutover sequence, and the failure table
-> for the tool-auth boundary. Read those; ignore the agent-configuration steps
-> until this document is rewritten around the new call handler.
+> **Before a real patient call**, two attestations must be true —
+> `ELEVENLABS_BAA_ATTESTED` and `ELEVENLABS_ZERO_RETENTION` — or the voice hooks
+> return 503 in production. Neither is required for the testing in Phase 0 and
+> Phase 1 below, which uses no patient data.
 
 Three phases, in order. Phase 0 gets you a real phone call with a real agent
 today, with zero risk to the clinic. Phase 1 puts it on AWS in isolation.
 Phase 2 is the production cutover.
 
 Do not skip to Phase 2. The whole point of Phase 0 and 1 is that the first time
-the auth boundary, the appointment tokens and the Retell headers all have to work
+the auth boundary, the appointment tokens and the call headers all have to work
 together, no real patient is on the line.
 
 ---
 
 ## Phase 0 — a real test call against your laptop
 
-Nothing here touches Google, AWS, Retell production, or any patient record. The
+Nothing here touches Google, AWS, a live agent, or any patient record. The
 calendar, spreadsheet and mailbox are in memory and vanish when you stop the
 process.
 
@@ -40,7 +39,7 @@ The banner prints the throwaway tool secret, the throwaway webhook secret, and a
 seeded demo appointment you can reschedule or cancel during the call. Both
 secrets regenerate on every boot.
 
-### 2. Prove the backend before involving Retell
+### 2. Prove the backend before involving the vendor
 
 In a second terminal, using the values from the banner:
 
@@ -66,35 +65,58 @@ cloudflared tunnel --url http://localhost:3001
 ```
 
 (`brew install cloudflared`, or use `ngrok http 3001`.) Copy the HTTPS URL.
-Retell requires HTTPS, which is why a plain port forward will not do.
+ElevenLabs requires HTTPS tool URLs, which is why a plain port forward will not
+do.
 
-### 4. Point a *throwaway* Retell agent at it
+### 4. Provision a *throwaway* ElevenLabs agent against the tunnel
 
-Generate the tool config with the tunnel host swapped in:
+Pick a voice first — there is no default, because how a practice sounds is the
+practice's choice:
 
 ```bash
-npm run agent:tools -- --base-url https://<your-tunnel-host>
+npm run elevenlabs:voices
 ```
 
-That writes `agent/generated/tools.local.json` (gitignored — a tunnel URL can
-never be committed by accident). In Retell:
+Put the id in `tenants/<slug>.json` under `voice.elevenlabs_voice_id`. Nothing
+provisions without one.
 
-1. **Duplicate your existing agent.** Never edit the live one for this.
-2. Import or paste the eight tools from the generated file.
-3. Paste `agent/system-prompt.txt` as the system prompt.
-4. Add an agent-level **dynamic variable** `tool_auth_secret`, set to the
-   `x-tool-auth` value from the banner. The tool headers reference it as
-   `{{tool_auth_secret}}`, so the secret itself never lives in a file.
-5. Confirm each tool sends `x-call-id: {{call_id}}`, and that
-   `find_appointment`, `reschedule_appointment` and `cancel_appointment` also
-   send `x-caller-phone: {{user_number}}`.
-6. Point the agent's webhook at `https://<tunnel-host>/retell/webhook` and set
-   the signing secret to the webhook secret from the banner.
+Then dry-run the provisioner against the tunnel. Without `--apply` nothing is
+created; the exact payloads are written to `agent/generated/<slug>/` for review
+(gitignored — a tunnel URL can never be committed by accident):
+
+```bash
+npm run elevenlabs:provision -- --tenant <slug> --base-url https://<tunnel-host>
+```
+
+Read the generated payload, then create it:
+
+```bash
+npm run elevenlabs:provision -- --tenant <slug> --base-url https://<tunnel-host> --apply
+```
+
+The script is idempotent — it matches tools and the agent by name and updates
+them in place — so re-running it after a change does not litter the workspace
+with duplicates. It creates the tool secret in the ElevenLabs secret store and
+references it by `secret_id`, so the `x-tool-auth` value never lands in a file.
+It writes `agent/generated/<slug>/elevenlabs.<env>.json` with the ids of
+everything it touched.
+
+Two things still have to be set by hand in the ElevenLabs dashboard, because
+they are per-workspace rather than per-agent:
+
+1. Create the post-call webhook, point it at
+   `https://<tunnel-host>/voice/post-call`, and copy the signing secret it
+   issues into `ELEVENLABS_WEBHOOK_SECRET`. You do not choose this value.
+2. Set the conversation-initiation webhook to
+   `https://<tunnel-host>/voice/call-initiation`, and add the request header
+   `x-initiation-auth` with the value you put in
+   `ELEVENLABS_INITIATION_SECRET`. ElevenLabs does not sign this hook, which is
+   why it carries a shared secret instead.
 
 ### 5. Call it
 
-Use Retell's test call, or assign a test number and dial from the seeded demo
-number. To use your own mobile instead, restart with:
+Use the ElevenLabs test call in the dashboard, or attach a number and dial from
+the seeded demo number. To use your own mobile instead, restart with:
 
 ```bash
 DEMO_CALLER_PHONE="+49..." npm run dev:local
@@ -188,8 +210,9 @@ first. The short version, because it changes this runbook's assumptions:
    ```
    Expect to iterate — neither template has ever been submitted to AWS, and both
    need VPC, subnet and certificate values from the real account first.
-4. Put the staging Google credential, Retell signing key and Resend key into the
-   secret containers the stack created. The tool and appointment-token secrets
+4. Put the staging Google credential, the two ElevenLabs webhook secrets
+   (`ELEVENLABS_WEBHOOK_SECRET`, `ELEVENLABS_INITIATION_SECRET`) and the Resend
+   key into the secret containers the stack created. The tool and appointment-token secrets
    were generated by CloudFormation; you never need to see them.
 5. The `tenant-service` stack creates the target group, the listener rule and the
    ECS service. Reconcile `ClusterName` against what already exists in the account;
@@ -201,11 +224,11 @@ first. The short version, because it changes this runbook's assumptions:
 6. Set `AWS_DEPLOY_ROLE_ARN` and `SERVICE_BASE_URL` as variables on the GitHub
    `staging` environment, from the stack outputs.
 7. Run the deploy workflow with `tenant: amityville-wellness` and
-   `target: staging`. The quality gate runs build, 232 tests, the offline harness,
+   `target: staging`. The quality gate runs build, 294 tests, the offline harness,
    both evals and an audit before anything ships, and the
    post-deploy smoke test asserts the auth boundary is closed.
-8. Repoint the throwaway Retell agent from the tunnel to the staging host and
-   repeat the Phase 0 call script. Check that appointments land in the *staging*
+8. Re-run the provisioner with `--env staging` instead of `--base-url` to point
+   the throwaway agent at the staging host, and repeat the Phase 0 call script. Check that appointments land in the *staging*
    calendar and spreadsheet.
 
 ---
@@ -218,9 +241,9 @@ first. The short version, because it changes this runbook's assumptions:
    the "exists outside this stack" case, not a reuse shortcut.
 2. Store the production secrets. Set the `production` GitHub environment
    variables and **require yourself as a reviewer**.
-3. Add the three headers to the **live** Retell agent, and set its
-   `tool_auth_secret` dynamic variable — while the currently deployed backend
-   still ignores them. Getting this order wrong breaks every live call.
+3. Provision the **production** agent with `--env production --apply`, while the
+   currently deployed backend still ignores the headers. Getting this order
+   wrong breaks every live call.
 4. Pick a window when the clinic is closed. The coordination table is renamed
    (`ai-receptionist-coordination` → `ai-receptionist-production-coordination`);
    there is nothing to migrate, but during the rollover two tasks could read
@@ -236,26 +259,41 @@ first. The short version, because it changes this runbook's assumptions:
 
 | Symptom | Cause |
 |---|---|
-| every tool call returns 401 | `tool_auth_secret` missing or wrong on the Retell agent |
+| every tool call returns 401 | the tool secret is missing or wrong in the ElevenLabs secret store; re-run the provisioner |
 | lookup returns 403 `CALLER_VERIFICATION_REQUIRED` | `x-caller-phone: {{user_number}}` not set, or you are calling from a different number than the booking |
 | lookup returns 409 `AMBIGUOUS_APPOINTMENT` | several confirmed appointments on that number — the agent must ask for the original date and exact time |
 | reschedule/cancel returns 404 "Verified appointment not found" | the selection token is missing, expired (10 min), or bound to another caller |
-| webhook returns 401 | signing secret mismatch, clock skew over 5 minutes, or Retell's signature scheme differs from the implementation — see below |
+| webhook returns 401 | signing secret mismatch, clock skew over 5 minutes, or the signature scheme differs from the implementation — see below |
 | tools return 503 | the coordination table is unreachable. Intentional: fail closed rather than risk a double booking |
 | service starts then dies in production | `assertProductionSecurityConfig` refused to boot. Check the three secrets are ≥32 chars and `COORDINATION_TABLE` is set. Do not weaken this check |
 
-**The webhook scheme is the one genuine unknown.** The implementation expects
-`x-retell-signature: v=<ms-timestamp>,d=<sha256-hex>` with the HMAC computed over
-`rawBody + timestamp`. `npm run local:check` proves the implementation is
-internally consistent — it accepts a correctly signed body and rejects a tampered
-one — but only a real Retell webhook confirms the scheme matches theirs. Verify
-this in Phase 0 or 1. A mismatch fails closed (401), so it is an outage risk, not
-a security hole.
+**The webhook scheme follows ElevenLabs' documentation but has not yet seen a
+live delivery.** The implementation expects
+`elevenlabs-signature: t=<unix seconds>,v0=<sha256-hex>` with the HMAC computed
+over `<timestamp>.<rawBody>`, and rejects a timestamp further than
+`TELEPHONY_WEBHOOK_TOLERANCE_MS` away in *either* direction — the vendor's own
+SDK checks only the lower bound, which leaves a captured request replayable
+forever if its timestamp is in the future. `npm run local:check` proves the
+implementation is internally consistent — it accepts a correctly signed body and
+rejects a tampered one — but only a real delivery confirms the scheme end to
+end. Verify this in Phase 0 or 1. A mismatch fails closed (401), so it is an
+outage risk, not a security hole.
 
 ---
 
 ## Still owed
 
+- **The two ElevenLabs webhook secrets are not yet injected into the container.**
+  `tenant-service.yml` creates the containers
+  (`ELEVENLABS_WEBHOOK_SECRET`, `ELEVENLABS_INITIATION_SECRET`), but
+  `infra/task-definition.template.json` still carries only the original four
+  secrets, and `REQUIRED_SECRET_NAMES` in `infra/render.mjs` enforces exactly
+  that set. Until both are added there, a deployed task boots without them and
+  `/voice/post-call` answers 503. Adding them also means recording their
+  six-character Secrets Manager suffixes in each
+  `infra/environments/<tenant>.<env>.json`, which cannot be done before the
+  secrets exist in the account — `applySecretArnSuffixes` refuses a partly
+  suffixed set on purpose. Do this in Phase 1, step 4, once the stack is up.
 - Independent review. Nothing on this branch has been reviewed by a second agent
   or a human. When Codex quota returns, review `a5e2cbf..HEAD`.
 - The CloudFormation template and the DynamoDB Local path are unverified against

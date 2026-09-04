@@ -201,7 +201,7 @@ Resources:
     Properties:
       Name:
         Fn::Sub: '${ServiceName}/${EnvironmentName}/TOOL_AUTH_SECRET'
-      Description: Shared secret Retell must send in the tool auth header.
+      Description: Shared secret the voice agent must send in the tool auth header.
       GenerateSecretString:
         PasswordLength: 64
         ExcludePunctuation: true
@@ -220,14 +220,28 @@ Resources:
         ExcludeCharacters: '"@/\'
         RequireEachIncludedType: false
 
-  RetellWebhookSecret:
+  VoiceWebhookSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name:
-        Fn::Sub: '${ServiceName}/${EnvironmentName}/RETELL_WEBHOOK_SECRET'
+        Fn::Sub: '${ServiceName}/${EnvironmentName}/ELEVENLABS_WEBHOOK_SECRET'
       Description: >
-        Retell signing key used to verify X-Retell-Signature against the exact
-        raw request body. Operator-supplied; this stack never sets the value.
+        ElevenLabs signing key used to verify the post-call webhook signature
+        against the exact raw request body. ElevenLabs issues this value when
+        the webhook is created, so it is operator-supplied: this stack creates
+        an empty container and never sets the value.
+
+  VoiceInitiationSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name:
+        Fn::Sub: '${ServiceName}/${EnvironmentName}/ELEVENLABS_INITIATION_SECRET'
+      Description: >
+        Shared secret guarding the conversation-initiation webhook, which
+        ElevenLabs does not sign. The operator generates it and sets the same
+        value as a request header on the agent, so this stack cannot generate
+        it: a value only this stack knows could never be configured on the
+        vendor side.
 
   GoogleCredentialsSecret:
     Type: AWS::SecretsManager::Secret
@@ -274,7 +288,8 @@ Resources:
                 Resource:
                   - { Ref: ToolAuthSecret }
                   - { Ref: AppointmentTokenSecret }
-                  - { Ref: RetellWebhookSecret }
+                  - { Ref: VoiceWebhookSecret }
+                  - { Ref: VoiceInitiationSecret }
                   - { Ref: GoogleCredentialsSecret }
                   - { Ref: ResendApiKeySecret }
         - PolicyName: write-service-logs
@@ -548,8 +563,10 @@ Outputs:
     Value: { Ref: ToolAuthSecret }
   AppointmentTokenSecretArn:
     Value: { Ref: AppointmentTokenSecret }
-  RetellWebhookSecretArn:
-    Value: { Ref: RetellWebhookSecret }
+  VoiceWebhookSecretArn:
+    Value: { Ref: VoiceWebhookSecret }
+  VoiceInitiationSecretArn:
+    Value: { Ref: VoiceInitiationSecret }
   GoogleCredentialsSecretArn:
     Value: { Ref: GoogleCredentialsSecret }
   ResendApiKeySecretArn:
@@ -560,7 +577,7 @@ Outputs:
   TaskSecurityGroupId:
     Value: { Ref: TaskSecurityGroup }
   ServiceHostName:
-    Description: The hostname this clinic's Retell agent must call.
+    Description: The hostname this clinic's voice agent must call.
     Value: { Ref: HostName }
   ProductionGuard:
     Condition: IsProduction

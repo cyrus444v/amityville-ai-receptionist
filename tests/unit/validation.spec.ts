@@ -12,7 +12,7 @@ const valid = {
   time: '10:00',
 };
 
-describe('Retell input validation', () => {
+describe('voice tool input validation', () => {
   it('accepts full_name and maps first_visit to the persisted field', () => {
     const parsed = CreateAppointmentSchema.parse({
       ...valid,

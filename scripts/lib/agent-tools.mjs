@@ -1,5 +1,5 @@
 /**
- * Shared Retell tool-config handling for scripts/agent-tools-for.mjs and
+ * Shared tool-config handling for scripts/agent-tools-for.mjs and
  * scripts/render-agent.mjs.
  *
  * The committed agent/tools.json always stays pointed at tenant #1's production
@@ -26,7 +26,7 @@ export function parseHttpsBase(baseUrl) {
     throw new Error(`Not a valid URL: ${baseUrl}`);
   }
   if (parsed.protocol !== 'https:') {
-    throw new Error('Retell requires HTTPS tool URLs. Use a tunnel that terminates TLS.');
+    throw new Error('The voice vendor requires HTTPS tool URLs. Use a tunnel that terminates TLS.');
   }
   return parsed;
 }
@@ -43,7 +43,7 @@ export function loadTools(repoRoot) {
 export function rewriteToolUrls(tools, baseUrl, { inlineSecret = null } = {}) {
   const parsed = parseHttpsBase(baseUrl);
   if (inlineSecret && !isThrowawayHost(parsed.hostname)) {
-    throw new Error('Refusing to inline a tool secret for a non-throwaway host. Use a Retell dynamic variable instead.');
+    throw new Error('Refusing to inline a tool secret for a non-throwaway host. Use an agent-level dynamic variable instead.');
   }
   const origin = `${parsed.protocol}//${parsed.host}`;
   return tools.map((tool) => {

@@ -5,8 +5,8 @@ the coordination store, the IAM boundaries, the per-environment container
 configuration, the deploy identity, and an offline harness that exercises the
 whole call flow before anything is deployed.
 
-Nothing in here provisions or deploys on its own. Every AWS, Retell, and GitHub
-action below is an operator step that Cyrus runs deliberately.
+Nothing in here provisions or deploys on its own. Every AWS, ElevenLabs, and
+GitHub action below is an operator step that Cyrus runs deliberately.
 
 ## Topology
 
@@ -25,8 +25,9 @@ infra/cloudformation/tenant-service.yml     one stack per clinic per environment
   ├── DynamoDB  <svc>-<env>-coordination     TTL on `ttl`, SSE, PITR+deletion protection in production
   ├── Logs      /ecs/<svc>-<env>             30d staging / 365d production
   ├── Secrets   <svc>/<env>/{TOOL_AUTH_SECRET, APPOINTMENT_TOKEN_SECRET,
-  │             RETELL_WEBHOOK_SECRET, GOOGLE_CREDENTIALS_BASE64, RESEND_API_KEY}
-  ├── IAM       <svc>-<env>-task-execution   may read exactly those five secrets
+  │             ELEVENLABS_WEBHOOK_SECRET, ELEVENLABS_INITIATION_SECRET,
+  │             GOOGLE_CREDENTIALS_BASE64, RESEND_API_KEY}
+  ├── IAM       <svc>-<env>-task-execution   may read exactly those six secrets
   ├── IAM       <svc>-<env>-task             may touch exactly that one table
   ├── IAM       <svc>-<env>-github-deploy    OIDC, scoped to one repo + one environment
   ├── TargetGrp <svc>-<env>-tg               health check on /health
@@ -51,8 +52,8 @@ to come from the real account.
 `TOOL_AUTH_SECRET` and `APPOINTMENT_TOKEN_SECRET` use CloudFormation's
 `GenerateSecretString`, so those two values are minted inside AWS and never pass
 through a terminal, a clipboard, a chat transcript, or an agent. The Google
-credential, the Retell signing key, and the Resend key are created empty because
-they come from outside AWS.
+credential, the two ElevenLabs webhook secrets, and the Resend key are created
+empty because they come from outside AWS.
 
 ## Current AWS reality
 
@@ -92,7 +93,7 @@ first production deploy is a first deploy, not a replacement.
 
 2. **The running service is pre-security-baseline.** Its task definition declares
    13 environment variables and 2 secrets. Absent: `TOOL_AUTH_SECRET`,
-   `APPOINTMENT_TOKEN_SECRET`, `RETELL_WEBHOOK_SECRET`, `COORDINATION_TABLE`,
+   `APPOINTMENT_TOKEN_SECRET`, `COORDINATION_TABLE`,
    `ALLOWED_ORIGINS`, `RATE_LIMIT_*`, `TRUST_PROXY_HOPS`, `TENANT_CONFIG_JSON` —
    that is, every control the current code depends on, and the tenant
    configuration the current code refuses to boot without. It cannot be updated in
@@ -173,7 +174,7 @@ no access keys.
 2. **The clinic has no working phone agent right now.** So this is a first launch,
    not a cutover. Nothing to keep alive, no callers to drop, no rollback target.
    `agent/tools.json` points at `api.amityvillewellness.com`, which does not
-   resolve, so any Retell agent still configured from it is non-functional; the
+   resolve, so any voice agent still configured from it is non-functional; the
    hostname has to be created before a test call can work at all.
 
 3. **The `aivance-deploy` key gets temporary provisioning rights** rather than a
@@ -382,8 +383,7 @@ Deployment itself is the `Deploy to AWS ECS` workflow, run manually:
 - The image is always tagged with the commit SHA, never a moving tag.
 - After the service stabilises, `scripts/smoke.mjs` runs a credential-free,
   read-only probe: `/health` must answer 200, and `/current-date`,
-  `/find-appointment` and `/retell/webhook` must all answer 401 to an anonymous
-  caller. A deploy that leaves the tool boundary open fails here instead of
+  `/find-appointment` must both answer 401 to an anonymous caller. A deploy that leaves the tool boundary open fails here instead of
   quietly serving patient data. The smoke test never calls a write tool.
 
 ### Production coordination-table cutover
@@ -397,7 +397,7 @@ the length of one deploy. Cut over while the clinic is closed. Idempotency and
 rate limiting degrade harmlessly; double-booking is still caught by the
 availability re-check against the real calendar.
 
-## Retell agent surface
+## Voice agent tool surface
 
 `agent/tools.json` previously declared no headers, so after the auth boundary
 went live every tool call would have returned 401 mid-conversation. Each tool now
@@ -406,23 +406,23 @@ declares:
 | Header | Value | Purpose |
 |---|---|---|
 | `x-tool-auth` | `{{tool_auth_secret}}` | versioned tool credential |
-| `x-call-id` | `{{call_id}}` | shared rate limiting per call, not per Retell IP |
+| `x-call-id` | `{{call_id}}` | shared rate limiting per call, not per vendor IP |
 | `x-caller-phone` | `{{user_number}}` | verified caller number; only on `find_appointment`, `reschedule_appointment`, `cancel_appointment` |
 
-These are Retell dynamic-variable templates. `tool_auth_secret` is set once as an
-agent-level dynamic variable in the Retell dashboard, so the real secret stays
-out of git. `tests/unit/retell-contract.spec.ts` enforces that every header value
-remains a `{{template}}` — committing a literal credential fails the build — and
-that every tool URL maps to a path the app actually protects.
-
-**Rollout order matters.** Add the headers in Retell *while the current backend
-still ignores them*, then deploy the enforcing build. The reverse order breaks
-every live call.
+These are placeholders, resolved when the agent is provisioned:
+`lib/elevenlabs/tool-config.mjs` maps `{{call_id}}` and `{{user_number}}` to the
+ElevenLabs system variables `system__conversation_id` and `system__caller_id`,
+and resolves `{{tool_auth_secret}}` through the ElevenLabs secret store by
+`secret_id`, so the real secret stays out of git and out of every rendered file.
+`tests/unit/elevenlabs-tool-config.spec.ts` enforces both: an unmapped
+placeholder throws rather than being sent as literal text, and the tool secret
+is referenced by id and never inlined.
 
 ## Offline voice harness
 
 `npm run harness` boots the real Express app and drives all eight tools over
-HTTP with the exact headers Retell sends. Only Sheets, Calendar, and the mailer
+HTTP with the exact headers the call handler sends. Only Sheets, Calendar, and
+the mailer
 are replaced by in-memory doubles, so tool auth, rate limiting, idempotency,
 validation, caller verification, appointment tokens, slot coordination, and
 rollback all execute for real.
@@ -454,12 +454,14 @@ cross-caller attempt.
 
 1. Rotate the exposed Google service-account key in Google Cloud.
 2. Deploy the two CloudFormation stacks.
-3. Put the Google, Retell and Resend secret values into Secrets Manager.
+3. Put the Google, ElevenLabs and Resend secret values into Secrets Manager.
 4. Fill in `infra/environments/amityville-wellness.staging.json` with a staging calendar ID and a
    staging spreadsheet ID. The renderer refuses to build staging until you do.
 5. Create the staging ECS cluster/service (`ai-receptionist-staging`) and confirm
    the production cluster name matches `ai-receptionist-production`.
-6. Configure the Retell agent headers and the `tool_auth_secret` dynamic variable.
+6. Provision the ElevenLabs agent:
+   `npm run elevenlabs:provision -- --tenant <slug> --env staging` (dry run, then
+   `--apply`). It creates the tool secret, the eight tools and the agent.
 7. Set the GitHub environment variables and the production reviewer.
 8. Deploy staging, rehearse the full call flow against it, and only then deploy
    production.
