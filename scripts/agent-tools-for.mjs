@@ -46,7 +46,7 @@ try {
   process.exit(2);
 }
 if (inlineSecret && !isThrowawayHost(parsed.hostname)) {
-  console.error('--inline-secret is only allowed for a throwaway tunnel host. Use a Retell dynamic variable instead.');
+  console.error('--inline-secret is only allowed for a throwaway tunnel host. Use an agent-level dynamic variable instead.');
   process.exit(2);
 }
 
@@ -73,4 +73,4 @@ console.log(outPath);
 console.log(`\n${rewritten.length} tools pointed at ${origin}`);
 console.log(inlineSecret
   ? 'Tool secret inlined — this file is throwaway, never commit or reuse it.'
-  : 'Headers still use {{tool_auth_secret}}; set that dynamic variable on the Retell agent.');
+  : 'Headers still use {{tool_auth_secret}}; set that dynamic variable on the voice agent.');

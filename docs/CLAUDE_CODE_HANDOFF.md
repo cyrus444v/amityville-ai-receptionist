@@ -9,7 +9,7 @@ your job is to execute it and to correct it where reality disagrees.
 - Repository: `/Users/cyruslang/aivance-voice-agent` (standalone clone, `origin` is GitHub)
 - Branch `agent/claude-infra-20260818`, on the reviewed candidate:
   - `5e4e0c0` hardened security baseline (65 tests, reviewed evidence)
-  - `b449511` declarative infrastructure, Retell header fix, offline harness
+  - `b449511` declarative infrastructure, telephony header fix, offline harness
   - `9ea0814` locally runnable agent, live-server checker, go-live runbook
   - then documentation, the in-repo evaluator, and Phase A (the tenant refactor)
 - Green right now: `npm run build`, `npm run test:ci` (232 tests),
@@ -147,8 +147,9 @@ here has ever been checked against reality.
    `REPLACE_WITH_*` sentinels remain, and refuses to point staging at the
    production calendar or spreadsheet.
 3. Deploy the staging stack, then the staging service.
-4. Render the Retell agent for staging, point a **duplicated** Retell agent at it,
-   and run the call script in `docs/GO_LIVE.md` §6.
+4. Provision the staging voice agent with
+   `npm run elevenlabs:provision -- --tenant <slug> --env staging` (dry run first,
+   then `--apply`), and run the call script in `docs/GO_LIVE.md` §6.
 5. `npm run smoke -- https://<staging-host>` must pass — it asserts the auth
    boundary is closed without CI ever holding the tool secret.
 
@@ -179,9 +180,10 @@ infrastructure build report, and the prompt that started this phase.
 - `NODE_ENV=production` is exported in some shells on this machine. That makes
   `npm ci` skip devDependencies and `tsc` disappear. If a build fails oddly, run
   `env -u NODE_ENV`.
-- Retell's exact webhook signature scheme is unconfirmed and Cyrus has said it
-  need not match theirs — treat the current HMAC-over-`rawBody + timestamp`
-  implementation as ours. `npm run local:check` proves it is self-consistent.
+- The post-call webhook signature is now ElevenLabs', verified in
+  `src/middleware/voice-webhook.ts` against the exact raw body with a two-sided
+  timestamp window. `npm run local:check` proves the implementation is
+  self-consistent; only a real ElevenLabs webhook confirms the scheme matches.
 - The offline harness writes `harness/transcripts/voice-agent.jsonl`, scored by
   `npm run eval:transcripts`. Keep both evals at 48/48; CI fails otherwise.
 - Nothing on `b449511` or `9ea0814` has had independent review. If Codex quota is

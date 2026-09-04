@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Renders one clinic's complete Retell agent surface: its tool configuration and
+ * Renders one clinic's complete voice agent surface: its tool configuration and
  * its system prompt, both pointed at a chosen host.
  *
  *   node scripts/render-agent.mjs --tenant amityville-wellness --env production
@@ -11,7 +11,7 @@
  * is gitignored: a rendered agent may carry a tunnel URL or a throwaway secret,
  * and neither belongs in the repository.
  *
- * This is the "render the Retell agent" step of onboarding a clinic.
+ * This is the "render the voice agent" step of onboarding a clinic.
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -66,7 +66,7 @@ try {
   console.log(`prompt: ${prompt.split('\n').length} lines, hours and services taken from tenants/${slug}.json`);
   console.log(inlineSecret
     ? 'Tool secret inlined — this file is throwaway, never commit or reuse it.'
-    : 'Headers still use {{tool_auth_secret}}; set that dynamic variable on the Retell agent.');
+    : 'Headers still use {{tool_auth_secret}}; set that dynamic variable on the voice agent.');
 } catch (error) {
   console.error(`render failed: ${error.message}`);
   process.exit(1);
