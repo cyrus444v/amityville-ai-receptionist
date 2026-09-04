@@ -13,6 +13,7 @@ import {
   buildAgentPayload,
   buildConversationConfig,
   builtInTools,
+  transferDestination,
   greetingFor,
   withCallContext,
 } from '../../lib/elevenlabs/agent-config.mjs';
@@ -104,8 +105,35 @@ describe('escalation and greeting', () => {
   it('can put a human on the line, which the prompt\'s emergency rule requires', () => {
     const tools: Record<string, any> = builtInTools(tenant);
     expect(tools.transfer_to_number).toBeDefined();
-    expect(tools.transfer_to_number.params.transfers[0].transfer_destination.phone_number)
-      .toBe(tenant.contact.phone);
+  });
+
+  it('dials the transfer number in the only spelling the vendor accepts', () => {
+    // This assertion used to be `.toBe(tenant.contact.phone)` — it pinned the
+    // bug in place. Tenant files write the number the way it is read aloud
+    // ("+1 631-691-0200"), and agents/{id} rejects anything but digits, `+`
+    // and `*`, which left the agent unpublishable with a red Error badge.
+    const tools: Record<string, any> = builtInTools(tenant);
+    const number: string = tools.transfer_to_number.params.transfers[0].transfer_destination.phone_number;
+    expect(number).toMatch(/^\+?[0-9]+$/);
+    expect(number).toBe('+16316910200');
+  });
+
+  it('normalises the shapes a tenant file actually contains', () => {
+    expect(transferDestination('+1 631-691-0200')).toBe('+16316910200');
+    expect(transferDestination('(631) 691-0200')).toBe('6316910200');
+    expect(transferDestination(' +49 30 901820 ')).toBe('+4930901820');
+  });
+
+  it('omits the transfer tool rather than declaring one that cannot dial', () => {
+    // A destination that will not dial is worse than no transfer tool: the
+    // prompt's emergency rule would hand the caller to a number the vendor
+    // refuses, mid-emergency.
+    expect(transferDestination('n/a')).toBeNull();
+    expect(transferDestination('')).toBeNull();
+    expect(transferDestination(undefined as unknown as string)).toBeNull();
+    const stripped = { ...tenant, voice: { ...tenant.voice }, contact: { ...tenant.contact, phone: 'n/a' } };
+    const strippedTools: Record<string, any> = builtInTools(stripped);
+    expect(strippedTools.transfer_to_number).toBeUndefined();
   });
 
   it('greets with the name the clinic says it is spoken as', () => {
