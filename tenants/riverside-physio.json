@@ -9,6 +9,7 @@
     "website": "https://www.riverside-physio.example"
   },
   "timezone": "America/Los_Angeles",
+  "default_phone_region": "US",
   "default_appointment_duration_minutes": 45,
   "business_hours": {
     "monday": {

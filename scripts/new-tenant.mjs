@@ -13,6 +13,10 @@
  *     --website "https://www.example.com" \
  *     --open monday=08:00-16:00 --open thursday=10:00-18:00
  *
+ * --phone-region is the ISO 3166-1 alpha-2 region a caller's number is read in
+ * when they give it without a country code. It defaults to US; a clinic outside
+ * the NANP has to set it or its patients' numbers will not match on lookup.
+ *
  * Writes tenants/<slug>.json and infra/environments/<slug>.{staging,production}.json,
  * then prints what is left to do by hand. Refuses to overwrite an existing clinic
  * without --force: silently rewriting a live clinic's configuration is not a
@@ -49,6 +53,7 @@ const options = {
   website: flag('website'),
   timezone: flag('timezone'),
   timezoneLabel: flag('timezone-label'),
+  phoneRegion: flag('phone-region'),
   spokenName: flag('spoken-name'),
   providerShort: flag('provider'),
   productionHost: flag('production-host'),

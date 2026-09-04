@@ -57,6 +57,38 @@ describe('the reference tenant', () => {
   });
 });
 
+/**
+ * The region a caller's number is read in when they give it without a country
+ * code. It has no default because getting it wrong is silent: the clinic keeps
+ * answering the phone, stores the caller's spoken number under one key and
+ * their caller ID under another, and never finds the appointment again.
+ */
+describe('the phone region', () => {
+  it('refuses a clinic that does not state one', () => {
+    const config = draft();
+    delete config.default_phone_region;
+    expectRejected(config, /default_phone_region/);
+  });
+
+  it.each([
+    ['us', 'a lower-case code'],
+    ['UK', 'a code that is not the ISO one — Great Britain is GB'],
+    ['USA', 'an alpha-3 code'],
+    ['', 'an empty string'],
+    ['DEU', 'an alpha-3 code for Germany'],
+  ])('rejects %s (%s)', (region) => {
+    const config = draft();
+    config.default_phone_region = region;
+    expectRejected(config, /default_phone_region must be an upper-case ISO 3166-1 alpha-2 region/);
+  });
+
+  it('accepts a clinic outside the numbering plan clinic #1 is in', () => {
+    const config = draft();
+    config.default_phone_region = 'DE';
+    expect(parseTenant(JSON.stringify(config), 'fixture').default_phone_region).toBe('DE');
+  });
+});
+
 describe('business hours', () => {
   it('rejects a configuration missing a day', () => {
     const config = draft();

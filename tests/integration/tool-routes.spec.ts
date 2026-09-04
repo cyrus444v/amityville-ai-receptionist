@@ -124,6 +124,38 @@ describe('public voice-tool boundary', () => {
     expect(logs.mock.calls.flat().join(' ')).not.toMatch(/555\d+/);
   });
 
+  /**
+   * 2026-09-04, first end-to-end call against staging. The caller read their
+   * number out, "00491742306370" went into the table verbatim, and when they
+   * rang back the caller ID said "+491742306370". The lookup compared the two
+   * strings, found nothing, and the caller could not reach their own
+   * appointment. Both spellings are one number and have to find one row.
+   *
+   * This also stands in for the rows already in the staging table: the stored
+   * string is normalised on read, so a legacy "00…" row is found by a "+…"
+   * caller without anyone rewriting it.
+   */
+  it.each([
+    ['00491742306370', '+491742306370'],
+    ['+491742306370', '00491742306370'],
+  ])('finds an appointment stored as %s when the caller arrives as %s', async (storedPhone, callerPhone) => {
+    const row = new Array(17).fill('');
+    row[APPT.id] = 'appt-incident';
+    row[APPT.caller_name] = 'Fixture Patient';
+    row[APPT.phone] = storedPhone;
+    row[APPT.service_name] = 'Acupuncture';
+    row[APPT.appointment_date] = '2026-09-08';
+    row[APPT.appointment_time] = '10:00';
+    row[APPT.status] = 'confirmed';
+    serviceMocks.getRows.mockResolvedValue([{ rowIndex: 2, values: row }]);
+
+    const found = await request(createApp()).post('/find-appointment').set(auth)
+      .set('x-caller-phone', callerPhone)
+      .send({ phone: callerPhone }).expect(200);
+    expect(found.body.found).toBe(true);
+    expect(found.body.appointment_token).toEqual(expect.any(String));
+  });
+
   it('rejects unverified and ambiguous appointment lookup without disclosing records', async () => {
     const row = new Array(17).fill('');
     row[APPT.id] = 'appt-one';

@@ -9,6 +9,7 @@
     "website": "https://www.amityvillewellness.com"
   },
   "timezone": "America/New_York",
+  "default_phone_region": "US",
   "voice": {
     "elevenlabs_voice_id": "XrExE9yKIg1WjnnlVkGX"
   },

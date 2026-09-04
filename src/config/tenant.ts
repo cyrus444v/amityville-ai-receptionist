@@ -20,6 +20,7 @@
 
 import { readFileSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
+import { isSupportedCountry, type CountryCode } from 'libphonenumber-js';
 import { z } from 'zod';
 
 /** Repository root, from either `src/config` (ts-node) or `dist/config` (built). */
@@ -90,6 +91,23 @@ const serviceSchema = z
   .strict();
 
 export type TenantService = z.infer<typeof serviceSchema>;
+
+/**
+ * The region a caller's number is read in when they give it without a country
+ * code — "0174 2306370" is a German mobile and is nothing at all under the
+ * North American numbering plan. It is required rather than defaulted for the
+ * same reason the tenant configuration as a whole is: guessing wrong here is
+ * silent. A German clinic booted under an assumed "US" would store a caller's
+ * spoken number and their incoming caller ID as two different strings and then
+ * never find the appointment again — the 2026-09-04 incident, reintroduced for
+ * every clinic that forgets the line.
+ */
+const phoneRegionSchema = z
+  .string()
+  .refine(
+    (value): value is CountryCode => isSupportedCountry(value),
+    'default_phone_region must be an upper-case ISO 3166-1 alpha-2 region — "GB", not "UK"',
+  );
 
 function isResolvableTimezone(timezone: string): boolean {
   try {
@@ -175,6 +193,7 @@ export const tenantSchema = z
       })
       .strict(),
     timezone: z.string().refine(isResolvableTimezone, 'timezone is not a resolvable IANA zone'),
+    default_phone_region: phoneRegionSchema,
     default_appointment_duration_minutes: z.number().int().positive(),
     business_hours: businessHoursSchema,
     email: z
