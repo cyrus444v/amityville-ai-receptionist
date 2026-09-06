@@ -14,6 +14,7 @@ import {
   buildConversationConfig,
   builtInTools,
   greetingFor,
+  toDiallableNumber,
   withCallContext,
 } from '../../lib/elevenlabs/agent-config.mjs';
 import { loadTenantFile } from '../../lib/tenant-file.mjs';
@@ -96,7 +97,37 @@ describe('escalation and greeting', () => {
     const tools: Record<string, any> = builtInTools(tenant);
     expect(tools.transfer_to_number).toBeDefined();
     expect(tools.transfer_to_number.params.transfers[0].transfer_destination.phone_number)
-      .toBe(tenant.contact.phone);
+      .toBe(toDiallableNumber(tenant.contact.phone));
+  });
+
+  // This assertion used to compare against `tenant.contact.phone` verbatim,
+  // which locked in the bug: the tenant file spells the number the way a human
+  // reads it, and ElevenLabs rejects the whole agent for it.
+  it('hands the transfer a diallable number, not the one the clinic prints', () => {
+    const tools: Record<string, any> = builtInTools(tenant);
+    const dialled = tools.transfer_to_number.params.transfers[0].transfer_destination.phone_number;
+    expect(dialled).toMatch(/^\+?[0-9*]+$/);
+    expect(dialled).not.toContain(' ');
+    expect(dialled).not.toContain('-');
+  });
+
+  it('normalises the shapes a tenant file plausibly carries', () => {
+    expect(toDiallableNumber('+1 631-691-0200')).toBe('+16316910200');
+    expect(toDiallableNumber('+49 (30) 23125 041')).toBe('+493023125041');
+    expect(toDiallableNumber('0049 30 23125041')).toBe('+493023125041');
+    expect(toDiallableNumber('631.691.0200')).toBe('6316910200');
+    expect(toDiallableNumber('+1 631-691-0200,,*2')).toBe('+16316910200*2');
+    expect(toDiallableNumber('   ')).toBeUndefined();
+    expect(toDiallableNumber(undefined)).toBeUndefined();
+  });
+
+  it('drops the transfer tool rather than emitting an unusable destination', () => {
+    const tools: Record<string, any> = builtInTools({
+      ...tenant,
+      voice: { ...tenant.voice, transfer_number: '—' },
+      contact: { ...tenant.contact, phone: undefined },
+    });
+    expect(tools.transfer_to_number).toBeUndefined();
   });
 
   it('greets with the name the clinic says it is spoken as', () => {
