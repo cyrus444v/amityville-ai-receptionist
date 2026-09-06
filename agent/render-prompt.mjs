@@ -1,5 +1,5 @@
 /**
- * Renders a clinic's Retell system prompt from agent/system-prompt.template.txt
+ * Renders a clinic's voice agent system prompt from agent/system-prompt.template.txt
  * plus that clinic's tenant configuration.
  *
  * The template holds the reusable machinery — the booking, cancellation,

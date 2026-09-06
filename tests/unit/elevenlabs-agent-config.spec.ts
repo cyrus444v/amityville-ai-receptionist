@@ -21,6 +21,11 @@ import { initiationVariables } from '../../src/services/call-context';
 
 const base = loadTenantFile('amityville-wellness');
 const tenant = { ...base, voice: { elevenlabs_voice_id: 'voice_fixture' } };
+// The no-voice case is constructed rather than borrowed from the tenant file.
+// It used to be `base` itself, which only tested the guard for as long as no
+// real clinic had picked a voice — the moment tenant #1 declared one, the
+// assertion passed a tenant that *had* a voice and stopped testing anything.
+const voiceless = { ...base, voice: undefined };
 const PROMPT = 'REVIEWED PROMPT BODY';
 
 // Boundary types: the builders are plain ESM and tsc infers literal shapes
@@ -73,7 +78,7 @@ describe('conversation configuration', () => {
   });
 
   it('refuses to build without a voice the clinic actually chose', () => {
-    expect(() => buildConversationConfig(base, PROMPT)).toThrow(/elevenlabs_voice_id/);
+    expect(() => buildConversationConfig(voiceless, PROMPT)).toThrow(/elevenlabs_voice_id/);
   });
 
   it('lets a clinic override the voice knobs it cares about', () => {

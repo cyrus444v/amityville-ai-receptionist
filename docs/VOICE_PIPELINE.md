@@ -97,16 +97,17 @@ the ones with a compliance cost attached — see below.
 ## Phase 1 — done
 
 Configuration is provider-neutral: `TELEPHONY_CALLER_PHONE_HEADER`,
-`TELEPHONY_CALL_ID_HEADER`, `TELEPHONY_WEBHOOK_SECRET`,
-`TELEPHONY_WEBHOOK_TOLERANCE_MS`. The `RETELL_*` spellings are still accepted as
-fallbacks, and the header defaults still name Retell's headers — **on purpose**:
-the task definition currently deployed sets `RETELL_*`, so removing the fallback
-would stop the running container from booting before any replacement exists.
-`TOOL_AUTH_SECRET` / `_HEADER` / `_VERSION` were already provider-neutral and
-were not touched.
+`TELEPHONY_CALL_ID_HEADER`, `TELEPHONY_WEBHOOK_TOLERANCE_MS`, with the headers
+defaulting to `x-caller-phone` and `x-call-id`. `TOOL_AUTH_SECRET` / `_HEADER` /
+`_VERSION` were already provider-neutral and were not touched. The webhook
+secrets are vendor-named on purpose — `ELEVENLABS_WEBHOOK_SECRET` is issued by
+ElevenLabs and `ELEVENLABS_INITIATION_SECRET` is checked only on their
+initiation hook, so neither would survive a vendor change unexamined.
 
-Nothing was deleted. `src/routes/retell.ts`, `agent/` and the `retell:*` scripts
-stay until the self-hosted path handles all six call scenarios in staging.
+The previous vendor's compatibility fallbacks were retired with it: the old
+`RETELL_*` spellings are no longer read, its route is deleted, and no script or
+template refers to it. Nothing in the repository names a telephony vendor other
+than ElevenLabs.
 
 ## Verified vendor facts (25 August 2026) — retained as history
 
@@ -267,8 +268,9 @@ shapes fails on the first real call.
   out of every rendered file.
   [API reference](https://elevenlabs.io/docs/api-reference/tools/create)
 - **System dynamic variables** — `system__caller_id`, `system__conversation_id`,
-  `system__call_sid` and friends. These replace Retell's `{{user_number}}` and
-  `{{call_id}}`.
+  `system__call_sid` and friends. These replace the `{{user_number}}` and
+  `{{call_id}}` placeholders `agent/tools.json` writes, via `HEADER_VARIABLE_MAP`
+  in `lib/elevenlabs/tool-config.mjs`.
   [Dynamic variables](https://elevenlabs.io/docs/eleven-agents/customization/personalization/dynamic-variables)
 - **Conversation initiation webhook** — payload carries `caller_id`, `agent_id`,
   `called_number`, `call_sid`, `conversation_id`; the response must be

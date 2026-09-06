@@ -21,14 +21,13 @@ def check(condition: bool, code: str, message: str, severity: str = "error") -> 
 
 def static_checks(repo: Path, config: Dict) -> List[Dict]:
     results: List[Dict] = []
-    # The agent surface moved out of retell/ when the telephony vendor was
-    # dropped. These two files are vendor-neutral and are still the canonical
-    # definition of what the agent can do and how it is told to behave; the
-    # ElevenLabs provisioner renders both from exactly these.
+    # The agent surface lives in agent/. These two files are vendor-neutral and
+    # are the canonical definition of what the agent can do and how it is told
+    # to behave; the ElevenLabs provisioner renders both from exactly these.
     #
     # This mattered more than it looks: static_checks() returns early when a
-    # required file is missing, so while these paths pointed at the deleted
-    # retell/ directory only 6 of the 48 checks ran at all, and the eval
+    # required file is missing, so while these paths pointed at the old
+    # vendor-named directory only 6 of the 48 checks ran at all, and the eval
     # reported "4 passed" instead of failing.
     tools_path = repo / "agent" / "tools.json"
     prompt_path = repo / "agent" / "system-prompt.txt"
@@ -95,10 +94,10 @@ def static_checks(repo: Path, config: Dict) -> List[Dict]:
 
     if "first_visit" in create_props:
         first_visit_supported = "first_visit" in validation or "body.first_visit" in routes
-        results.append(check(first_visit_supported, "contract:create:first-visit", "Backend persists the Retell first_visit field"))
+        results.append(check(first_visit_supported, "contract:create:first-visit", "Backend persists the first_visit intake field"))
     if "referral_source" in create_props:
         referral_supported = "referral_source" in validation or "body.referral_source" in routes
-        results.append(check(referral_supported, "contract:create:referral", "Backend persists the Retell referral_source field"))
+        results.append(check(referral_supported, "contract:create:referral", "Backend persists the referral_source intake field"))
 
     route_names = {
         "get_current_date": "/current-date",
@@ -117,9 +116,8 @@ def static_checks(repo: Path, config: Dict) -> List[Dict]:
         if name in expected:
             results.append(check(route in all_source, "route:%s" % name, "Backend implements %s" % route))
 
-    # Was: src/routes/retell.ts. The telephony vendor's route is gone; the
-    # voice vendor's two webhooks are verified in this middleware instead —
-    # one by vendor signature, one by a shared secret we issue.
+    # The voice vendor's two webhooks are verified in this middleware — one by
+    # vendor signature, one by a shared secret we issue.
     webhook_middleware = (repo / "src" / "middleware" / "voice-webhook.ts")
     webhook_source = webhook_middleware.read_text(encoding="utf-8").lower() if webhook_middleware.is_file() else ""
     results.append(check(

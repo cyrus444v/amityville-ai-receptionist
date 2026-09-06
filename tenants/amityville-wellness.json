@@ -9,6 +9,9 @@
     "website": "https://www.amityvillewellness.com"
   },
   "timezone": "America/New_York",
+  "voice": {
+    "elevenlabs_voice_id": "XrExE9yKIg1WjnnlVkGX"
+  },
   "default_appointment_duration_minutes": 60,
   "business_hours": {
     "monday": {

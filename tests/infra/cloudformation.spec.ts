@@ -233,14 +233,15 @@ describe('one clinic per stack', () => {
     expect(resources).toEqual([{ 'Fn::GetAtt': ['CoordinationTable', 'Arn'] }]);
   });
 
-  it('reads the clinic\'s own five secrets and no others', () => {
+  it('reads the clinic\'s own six secrets and no others', () => {
     const policy = tenantService.Resources.TaskExecutionRole.Properties.Policies
       .find((entry: { PolicyName: string }) => entry.PolicyName === 'read-service-secrets');
     const resources = policy.PolicyDocument.Statement[0].Resource;
     expect(resources).toEqual([
       { Ref: 'ToolAuthSecret' },
       { Ref: 'AppointmentTokenSecret' },
-      { Ref: 'RetellWebhookSecret' },
+      { Ref: 'VoiceWebhookSecret' },
+      { Ref: 'VoiceInitiationSecret' },
       { Ref: 'GoogleCredentialsSecret' },
       { Ref: 'ResendApiKeySecret' },
     ]);

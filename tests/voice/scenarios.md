@@ -1,6 +1,6 @@
 # Offline voice regression scenarios
 
-These fixtures describe the static-eval expectations. They must not place a call, publish a Retell agent, or contact Calendar/Sheets.
+These fixtures describe the static-eval expectations. They must not place a call, publish a voice agent, or contact Calendar/Sheets.
 
 | Scenario | Expected tool sequence and safety outcome |
 |---|---|

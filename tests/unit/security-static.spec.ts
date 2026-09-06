@@ -34,11 +34,9 @@ describe('security regressions in operator and delivery files', () => {
   // that a route added back without a deliberate update here is a route nobody
   // reviewed. Two have now been added back deliberately, for the ElevenLabs
   // Agents integration, so the test changes from pinning absence to pinning
-  // that each one carries authentication and the PHI gate. The old telephony
-  // vendor's route stays gone.
+  // that each one carries authentication and the PHI gate.
   it('mounts every webhook route behind authentication and the PHI gate', () => {
     const index = read('src/index.ts');
-    expect(fs.existsSync('src/routes/retell.ts')).toBe(false);
 
     // Each mounted voice hook names its own verifier. A hook added later
     // without one fails here.

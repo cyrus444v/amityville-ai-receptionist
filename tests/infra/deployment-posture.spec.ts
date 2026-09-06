@@ -42,12 +42,12 @@ describe('least privilege', () => {
     expect(template).toMatch(/coordination-table-access[\s\S]{0,900}'Fn::GetAtt': \[CoordinationTable, Arn\]/);
   });
 
-  it('scopes secret reads to the five named service secrets', () => {
+  it('scopes secret reads to the six named service secrets', () => {
     const block = template.slice(template.indexOf('read-service-secrets'), template.indexOf('write-service-logs'));
     expect(block).toContain('secretsmanager:GetSecretValue');
     for (const secret of [
-      'ToolAuthSecret', 'AppointmentTokenSecret', 'RetellWebhookSecret',
-      'GoogleCredentialsSecret', 'ResendApiKeySecret',
+      'ToolAuthSecret', 'AppointmentTokenSecret', 'VoiceWebhookSecret',
+      'VoiceInitiationSecret', 'GoogleCredentialsSecret', 'ResendApiKeySecret',
     ]) {
       expect(block).toContain(`{ Ref: ${secret} }`);
     }

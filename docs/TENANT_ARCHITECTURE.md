@@ -8,7 +8,7 @@ and without any clinic ever being able to see another clinic's patient data.
 There are two ways to serve many clinics. This codebase should take the first.
 
 **Per-tenant deployment (chosen).** One ECS service per clinic, one coordination
-table per clinic, one set of secrets per clinic, one Retell agent per clinic. The
+table per clinic, one set of secrets per clinic, one voice agent per clinic. The
 same container image everywhere; the clinic's identity, hours and services arrive
 as configuration. Isolation is structural — a bug in tenant resolution cannot
 leak records across clinics, because the process only ever holds one clinic's
@@ -31,7 +31,7 @@ for an idle voice backend is small; the ALB is the fixed cost and it amortises.
  api.clinic-b…    ─────┤ host rule → target group → ECS service (clinic-b)     │
                        └───────────────────────────────────────────────────────┘
    each service: its own coordination table, its own secrets, its own
-   Google calendar + spreadsheet, its own Retell agent
+   Google calendar + spreadsheet, its own voice agent
 ```
 
 ## What is tenant-specific today, and where it is wrong
@@ -118,7 +118,7 @@ Each step left `npm run test:ci`, `npm run harness` and
 6. ✅ **`scripts/render-agent.mjs` (new)** — `--tenant <slug>` plus either
    `--env <environment>` or `--base-url`, emitting `tools.json` and the rendered
    prompt into `agent/generated/<slug>/`. The URL rewriting it shares with
-   `retell-tools-for.mjs` moved to `scripts/lib/agent-tools.mjs`, including the
+   `agent-tools-for.mjs` moved to `scripts/lib/agent-tools.mjs`, including the
    refusal to inline a secret for anything but a throwaway host. It refuses an
    unfilled `REPLACE_WITH_*` host rather than emitting an agent that fails every
    call.
@@ -164,7 +164,7 @@ Each step left `npm run test:ci`, `npm run harness` and
 - `npm run local:check` passes against a second tenant with different hours.
 - One image, one tag, two tenants, no rebuild.
 - Onboarding a clinic is: run `new-tenant`, fill in the Google IDs, deploy the
-  tenant stack, render the Retell agent, place a test call.
+  tenant stack, provision the voice agent, place a test call.
 
 ## Where this plan was wrong
 

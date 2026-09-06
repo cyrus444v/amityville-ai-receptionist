@@ -14,13 +14,32 @@ import { execFile } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import { promisify } from 'node:util';
 import { resolve } from 'node:path';
-import { rmSync } from 'node:fs';
+import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const execFileAsync = promisify(execFile);
 const repoRoot = resolve(__dirname, '../..');
 const SLUG = 'amityville-wellness';
+
+// A clinic that has not chosen a voice yet. This used to be tenant #1 itself,
+// which meant the "refuses before touching the API" test quietly stopped
+// testing anything the moment tenant #1 declared a voice. The provisioner
+// resolves a tenant by slug inside tenants/, so the case has to exist as a
+// file. It is written with a rename so that tests/unit/tenant-config.spec.ts,
+// which validates every file in that directory from a parallel worker, can
+// only ever see it complete and valid — never half-written.
+const NO_VOICE_SLUG = 'fixture-clinic-without-voice';
+const noVoicePath = resolve(repoRoot, 'tenants', `${NO_VOICE_SLUG}.json`);
+
+function writeVoicelessTenant(): void {
+  const reference = JSON.parse(readFileSync(resolve(repoRoot, 'tenants', `${SLUG}.json`), 'utf8'));
+  delete reference.voice;
+  reference.slug = NO_VOICE_SLUG;
+  const staging = `${noVoicePath}.tmp`;
+  writeFileSync(staging, `${JSON.stringify(reference, null, 2)}\n`, 'utf8');
+  renameSync(staging, noVoicePath);
+}
 
 interface StubState {
   tier: string;
@@ -42,6 +61,7 @@ function resetState(): void {
 
 beforeAll(async () => {
   resetState();
+  writeVoicelessTenant();
   let counter = 0;
   const id = (prefix: string) => `${prefix}_${++counter}`;
 
@@ -114,6 +134,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await new Promise<void>((done) => { server.close(() => done()); });
   rmSync(resolve(repoRoot, 'agent/generated', SLUG), { recursive: true, force: true });
+  rmSync(resolve(repoRoot, 'agent/generated', NO_VOICE_SLUG), { recursive: true, force: true });
+  rmSync(noVoicePath, { force: true });
 });
 
 function provision(extra: string[] = []) {
@@ -137,7 +159,7 @@ function provision(extra: string[] = []) {
 function provisionWithoutVoice(extra: string[] = []) {
   return execFileAsync('node', [
     'scripts/elevenlabs-provision.mjs',
-    '--tenant', SLUG,
+    '--tenant', NO_VOICE_SLUG,
     '--base-url', 'https://api-test.example.com',
     ...extra,
   ], {

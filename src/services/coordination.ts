@@ -65,7 +65,8 @@ export async function acquireCoordinationKeys(
             expires_at: { N: String(expiresAt) },
             ttl: { N: String(Math.ceil(expiresAt / 1000)) },
           },
-          ConditionExpression: 'attribute_not_exists(pk) OR expires_at <= :now OR owner = :owner',
+          ConditionExpression: 'attribute_not_exists(pk) OR expires_at <= :now OR #owner = :owner',
+          ExpressionAttributeNames: { '#owner': 'owner' },
           ExpressionAttributeValues: {
             ':now': { N: String(now) },
             ':owner': { S: owner },
@@ -96,7 +97,8 @@ export async function releaseCoordinationKeys(keys: string[], owner?: string): P
           TableName: config.security.coordinationTable,
           Key: { pk: { S: key } },
           ...(owner ? {
-            ConditionExpression: 'owner = :owner',
+            ConditionExpression: '#owner = :owner',
+            ExpressionAttributeNames: { '#owner': 'owner' },
             ExpressionAttributeValues: { ':owner': { S: owner } },
           } : {}),
         },
@@ -180,8 +182,8 @@ export async function listCoordinationRecords(prefix: string): Promise<Array<{ k
       TableName: config.security.coordinationTable,
       FilterExpression: 'begins_with(pk, :prefix)',
       ExpressionAttributeValues: { ':prefix': { S: prefix } },
-      ProjectionExpression: 'pk, owner, #state, expires_at, fingerprint, #data',
-      ExpressionAttributeNames: { '#state': 'state', '#data': 'data' },
+      ProjectionExpression: 'pk, #owner, #state, expires_at, fingerprint, #data',
+      ExpressionAttributeNames: { '#owner': 'owner', '#state': 'state', '#data': 'data' },
       ExclusiveStartKey: exclusiveStartKey,
     }));
     for (const item of response.Items ?? []) {
@@ -212,8 +214,8 @@ export async function updateCoordinationState(key: string, owner: string, state:
     TableName: config.security.coordinationTable,
     Key: { pk: { S: key } },
     UpdateExpression: 'SET #state = :state',
-    ConditionExpression: 'owner = :owner',
-    ExpressionAttributeNames: { '#state': 'state' },
+    ConditionExpression: '#owner = :owner',
+    ExpressionAttributeNames: { '#state': 'state', '#owner': 'owner' },
     ExpressionAttributeValues: {
       ':state': { S: state },
       ':owner': { S: owner },
@@ -235,7 +237,8 @@ export async function incrementRateLimit(
   const response = await getClient().send(new UpdateItemCommand({
     TableName: config.security.coordinationTable,
     Key: { pk: { S: key } },
-    UpdateExpression: 'SET expires_at = :expires, ttl = :ttl, owner = :owner ADD request_count :one',
+    UpdateExpression: 'SET expires_at = :expires, #ttl = :ttl, #owner = :owner ADD request_count :one',
+    ExpressionAttributeNames: { '#ttl': 'ttl', '#owner': 'owner' },
     ExpressionAttributeValues: {
       ':one': { N: '1' },
       ':expires': { N: String(expiresAt) },

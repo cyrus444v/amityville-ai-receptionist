@@ -78,7 +78,7 @@ describe('booking service', () => {
     vi.useRealTimers();
   });
 
-  it('creates once and persists every Retell field in append-only columns', async () => {
+  it('creates once and persists every intake field in append-only columns', async () => {
     const result = await createAppointment(createInput);
     expect(result.success).toBe(true);
     expect(createCalendarEvent).toHaveBeenCalledTimes(1);
